@@ -11,6 +11,7 @@
                 <th>Actions</th>
             </tr>
         </thead>
+
         <tbody>
             <tr class="{{server.cssClass}}" ng-repeat="server in stats.servers">
                 <td>{{server.name}}</td>
@@ -38,4 +39,30 @@
             </tr>
         </tbody>
     </table>
+    
 </div>
+<button id="apiKeyButton">Generate Api Key</button><br/><br/>
+<div id="apiKeyDiv" style="border:1px solid black;width: 550px"> 
+    <table id="apiKeyTable"><br/>
+        <tr><td>&nbsp;&nbsp;Name:</td><td><input type="text" id="NameText" placeholder="Please enter the data base's name" style="width:250px;"/></td></tr>
+        <tr><td>&nbsp;&nbsp;Secret:</td><td><input type="text" placeholder="Please generate an API key" style="width:250px;"/>&nbsp;&nbsp;&nbsp;<a>Generate Secret</a></td></tr>
+        <tr><td>&nbsp;&nbsp;Full Api Key:</td><td><input type="text" disabled="disabled"style="width:250px;"/></td></tr>
+        <tr><td>&nbsp;&nbsp;Connection string:</td><td><input type="text" disabled="disabled"style="width:250px;"/></td></tr>
+        <tr><td>&nbsp;&nbsp;Direct link:</td><td><input type="text" disabled="disabled" style="width:250px;"/></td></tr>
+        <tr><td>&nbsp;&nbsp;Enable:</td><td><input type="checkbox"  value="enable"/></td></tr>
+        
+    </table>
+</div>
+<script type="text/javascript">
+    $(function () {
+        $('#apiKeyDiv').hide();
+        $('#apiKeyButton').click(function () {
+            $('#apiKeyDiv').fadeIn();
+            $('#NameText').focus();
+        });
+        $('#apiKeyButton').mouseover(function () { $(this).css({ "color": "orange" }); });
+        $('#apiKeyButton').mouseout(function () { $(this).css({ "color": "black"}); });
+
+        //End script
+    })
+</script>
