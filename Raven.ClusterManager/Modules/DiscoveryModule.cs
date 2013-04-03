@@ -24,10 +24,10 @@ namespace Raven.ClusterManager.Modules
 		{
 			this.session = session;
 
-			Get["/start"] = parameters =>
+			Get["/start", true] = async (parameters, ct) =>
 			{
 				var discoveryClient = new ClusterDiscoveryClient(SenderId, "http://localhost:9020/api/discovery/notify");
-				discoveryClient.PublishMyPresenceAsync();
+				await discoveryClient.PublishMyPresenceAsync();
 				return "started";
 			};
 
