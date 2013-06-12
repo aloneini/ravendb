@@ -1,7 +1,8 @@
-﻿<div class="row-fluid">
-    <table class="table">
+﻿<div ng-app class="row-fluid">
+    <table class="table" id="serverstable">
         <thead>
             <tr>
+                <th>Add apiKey</th>
                 <th>Server Name</th>
                 <th>Cluster Name</th>
                 <th>URL</th>
@@ -14,7 +15,9 @@
 
         <tbody>
             <tr class="{{server.cssClass}}" ng-repeat="server in stats.servers">
-                <td>{{server.name}}</td>
+                <td>
+                    <input type="checkbox" name="apiKeyCheckbox" ng-model="server.serverCheckbox" /></td>
+                <td>{{server.serverName}}</td>
                 <td>{{server.clusterName}}</td>
                 <td>{{server.url}}</td>
                 <td><span title="{{server.lastOnlineTime}}">{{server.lastOnlineTime | timeAgo}}</span></td>
@@ -29,7 +32,7 @@
                     </span>
                 </td>
                 <td style="text-align: right">
-                     <a ng-hide="server.isOnline" ng-click="deleteServer(server)">
+                    <a ng-hide="server.isOnline" ng-click="deleteServer(server)">
                         <img src="/images/server_delete.png" title="Delete">
                     </a>
                     <a ng-href="/servers/{{server.id}}">
@@ -39,30 +42,119 @@
             </tr>
         </tbody>
     </table>
-    
+
 </div>
-<button id="apiKeyButton">Generate Api Key</button><br/><br/>
-<div id="apiKeyDiv" style="border:1px solid black;width: 550px"> 
-    <table id="apiKeyTable"><br/>
-        <tr><td>&nbsp;&nbsp;Name:</td><td><input type="text" id="NameText" placeholder="Please enter the data base's name" style="width:250px;"/></td></tr>
-        <tr><td>&nbsp;&nbsp;Secret:</td><td><input type="text" placeholder="Please generate an API key" style="width:250px;"/>&nbsp;&nbsp;&nbsp;<a>Generate Secret</a></td></tr>
-        <tr><td>&nbsp;&nbsp;Full Api Key:</td><td><input type="text" disabled="disabled"style="width:250px;"/></td></tr>
-        <tr><td>&nbsp;&nbsp;Connection string:</td><td><input type="text" disabled="disabled"style="width:250px;"/></td></tr>
-        <tr><td>&nbsp;&nbsp;Direct link:</td><td><input type="text" disabled="disabled" style="width:250px;"/></td></tr>
-        <tr><td>&nbsp;&nbsp;Enable:</td><td><input type="checkbox"  value="enable"/></td></tr>
-        
+<button id="apiKeyButton">Generate Api Key</button><br />
+<br />
+<div ng-controller="apiCtrl" id="apiKeyDiv" style="border: 1px solid black; width: 550px;border-radius:25px;">
+    <br/>
+    <table id="apiKeyTable">
+        <tr>
+            <td>&nbsp;&nbsp;<b>Name:</b></td>
+            <td>
+                <input ng-model="name" type="text" id="name" placeholder="Please enter a name for the key" style="width: 250px;" /></td>
+        </tr>
+        <tr>
+            <td>&nbsp;&nbsp;<b>Secret:</b></td>
+            <td>
+                <input id="Secret" type="text" ng-model="Secret" placeholder="Please generate an API key" style="width: 250px;" />&nbsp;&nbsp;&nbsp;
+
+                <button id="generateBtn" ng-click="generateSecret()">Generate new secret</button></td>
+        </tr>
+        <tr>
+            <td>&nbsp;&nbsp;<b>Full Api Key:</b></td>
+            <td>
+                <input type="text" id="FullApiKey" ng-model="FullApiKey" disabled="disabled" style="width: 250px;" /></td>
+        </tr>
+        <tr>
+            <td>&nbsp;&nbsp;<b>Connection string:</b></td>
+            <td>
+                <input type="text" disabled="disabled" style="width: 250px;" /></td>
+        </tr>
+        <tr>
+            <td>&nbsp;&nbsp;<b>Direct link:</b></td>
+            <td>
+                <input type="text" disabled="disabled" style="width: 250px;" /></td>
+        </tr>
+        <tr>
+            <td>&nbsp;&nbsp;<b>Enable:</b></td>
+            <td>
+                <input id="Enable11" ng-model="Enable11" type="checkbox" value="enable11" /></td>
+        </tr>
+
     </table>
+    <br/>
+
+    <button id="saveId" ng-click="saveApiKeys()">Save</button>
+    <button id="CloseBtn">Close</button>
+    <div id="serverAlertDiv">
+        <h5 id="serverAlert" ng-model="checkBoxAlert" style="color: red">{{alert}}</h5>
+    </div>
+    <h5 style="color: red" ng-model="nameAlert" id="nameAlert">* Please enter a name</h5>
+    <h5 style="color: red" ng-model="secretAlert" id="secretAlert">* Please generate a secret</h5>
+    <br />
+    <br />
+    <br />
+    <br />
+    <br />
+    <br />
 </div>
 <script type="text/javascript">
     $(function () {
-        $('#apiKeyDiv').hide();
-        $('#apiKeyButton').click(function () {
-            $('#apiKeyDiv').fadeIn();
-            $('#NameText').focus();
-        });
-        $('#apiKeyButton').mouseover(function () { $(this).css({ "color": "orange" }); });
-        $('#apiKeyButton').mouseout(function () { $(this).css({ "color": "black"}); });
+        $('#nameAlert').hide();
+        $('#secretAlert').hide();
+        $('#name').focus();
+        $('#generateBtn').click(function () { $('#generateBtn').css('color', 'black'); });
 
-        //End script
+        $('#CloseBtn').click(function () {
+            $('#apiKeyDiv').hide();
+            $('#nameAlert').hide();
+            $('#secretAlert').hide();
+            $('#generateBtn').css('color', 'black');
+            $("#name").css('border-color', '#CCCCCC');
+            $('#serverAlertDiv').hide();
+            $('#name').val('');
+            $('#Secret').val('');
+            $('#FullApiKey').val('');
+        });
+        $('#saveId').click(function () {
+            var checkName = $("#name"); 
+            $('#serverAlertDiv').show();
+            $('#serverAlert').show();
+            if (checkName.val() == "") { // check for a name
+                $('#nameAlert').show();
+                $("#name").css('border-color', 'red');
+                $('#name').focus();
+            }
+            else {
+                $('#nameAlert').hide();
+                $("#name").css('border-color', '#CCCCCC');
+            }
+
+            var checkSecret = $("#Secret");
+
+            if (checkSecret.val() == "") {
+                $('#secretAlert').show();
+                $('#generateBtn').css('color', 'red');
+            }
+            else {
+                $('#secretAlert').hide();
+                $('#generateBtn').css('color', 'black');
+            }
+        });
+        $('#apiKeyDiv').hide();
+        $('#apiKeyButton').click(
+            function () {
+                $('#serverAlert').show();
+                $('#apiKeyDiv').show();
+                $('#NameText').focus();
+            }
+        );
+
+        $('#apiKeyButton').mouseover(function () { $(this).css({ "color": "#CA5100" }); });
+        $('#apiKeyButton').mouseout(function () { $(this).css({ "color": "black" }); });
+        $('#generateBtn').mouseover(function () { $(this).css({ "color": "#CA5100" }); });
+        $('#generateBtn').mouseout(function () { $(this).css({ "color": "black" }); });
+//End script
     })
 </script>
