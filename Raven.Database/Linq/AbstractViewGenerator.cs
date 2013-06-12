@@ -4,6 +4,7 @@
 // </copyright>
 //-----------------------------------------------------------------------
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
@@ -12,6 +13,7 @@ using Lucene.Net.Documents;
 using Raven.Abstractions.Data;
 using Raven.Abstractions.Indexing;
 using System.Linq;
+using Raven.Abstractions.Linq;
 using Raven.Database.Indexing;
 using Spatial4n.Core.Shapes;
 
@@ -111,12 +113,35 @@ namespace Raven.Database.Linq
 				.CreateFields(name, value, stored ? Field.Store.YES : Field.Store.NO);
 		}
 
-		protected dynamic LoadDocument(string key)
+		protected dynamic LoadDocument(object item)
 		{
 			if (CurrentIndexingScope.Current == null)
-				throw new InvalidOperationException("LoadDocument may only be called from the map portion of the index. Was called with: " + key);
+				throw new InvalidOperationException("LoadDocument may only be called from the map portion of the index. Was called with: " + item);
 
-			return CurrentIndexingScope.Current.LoadDocument(key);
+			if (item == null || item is DynamicNullObject)
+				return new DynamicNullObject();
+
+			var key = item as string;
+			if (key != null)
+				return CurrentIndexingScope.Current.LoadDocument(key);
+
+			var enumerable = item as IEnumerable;
+			if (enumerable != null)
+			{
+				var enumerator = enumerable.GetEnumerator();
+				using (enumerable as IDisposable)
+				{
+					var items = new List<dynamic>();
+					while (enumerator.MoveNext())
+					{
+						items.Add(LoadDocument(enumerator.Current));
+					}
+					return new DynamicList(items);
+				}
+			}
+			throw new InvalidOperationException(
+				"LoadDocument may only be called with a string or an enumerable, but was called with a parameter of type " +
+				item.GetType().FullName + ": " + item);
 		}
 
 		public void AddQueryParameterForMap(string field)
@@ -182,45 +207,30 @@ namespace Raven.Database.Linq
 				return Enumerable.Empty<IFieldable>();
 
 			Shape shape = spatialField.GetContext().MakePoint(lng.Value, lat.Value);
-			return spatialField.GetStrategy().CreateIndexableFields(shape)
-				.Concat(new[] { new Field(Constants.SpatialShapeFieldName, spatialField.WriteShape(shape), Field.Store.YES, Field.Index.NO), });
+			return spatialField.CreateIndexableFields(shape);
 		}
 
 		public IEnumerable<IFieldable> SpatialGenerate(string fieldName, string shapeWKT,
 			SpatialSearchStrategy spatialSearchStrategy = SpatialSearchStrategy.GeohashPrefixTree,
 			int maxTreeLevel = 0, double distanceErrorPct = 0.025)
 		{
-			if (string.IsNullOrEmpty(shapeWKT))
-				return Enumerable.Empty<IFieldable>();
-
-			var options = new SpatialOptionsFactory().Geography(maxTreeLevel, spatialSearchStrategy);
-
-			var spatialField = GetSpatialField(fieldName, options);
-			var strategy = spatialField.GetStrategy();
-
-			var shape = spatialField.ReadShape(shapeWKT);
-			return strategy.CreateIndexableFields(shape)
-				.Concat(new[] { new Field(Constants.SpatialShapeFieldName, spatialField.WriteShape(shape), Field.Store.YES, Field.Index.NO), });
+			var spatialField = GetSpatialField(fieldName, spatialSearchStrategy, maxTreeLevel);
+			return spatialField.CreateIndexableFields(shapeWKT);
 		}
 
 		[CLSCompliant(false)]
-		public SpatialField GetSpatialField(string fieldName)
+		public SpatialField GetSpatialField(string fieldName, SpatialSearchStrategy spatialSearchStrategy = SpatialSearchStrategy.GeohashPrefixTree, int maxTreeLevel = 0)
 		{
-			return GetSpatialField(fieldName, new SpatialOptionsFactory().Geography());
-		}
-
-		[CLSCompliant(false)]
-		public SpatialField GetSpatialField(string fieldName, SpatialOptions options)
-		{
-			SpatialOptions opt;
-			indexDefinition.SpatialIndexes.TryGetValue(fieldName, out opt);
-			if (opt == null)
-				opt = options ?? new SpatialOptionsFactory().Geography();
-
 			return SpatialFields.GetOrAdd(fieldName, s =>
 			{
 				if (SpatialFields.Count > 1024)
 					throw new InvalidOperationException("The number of spatial fields in an index is limited to 1,024");
+				
+				SpatialOptions opt;
+				indexDefinition.SpatialIndexes.TryGetValue(fieldName, out opt);
+
+				if (opt == null)
+					opt = SpatialOptionsFactory.FromLegacy(spatialSearchStrategy, maxTreeLevel);
 
 				return new SpatialField(fieldName, opt);
 			});
@@ -230,6 +240,7 @@ namespace Raven.Database.Linq
 		{
 			if (indexDefinition == null || indexDefinition.SpatialIndexes == null)
 				return false;
+
 			SpatialOptions opt;
 			indexDefinition.SpatialIndexes.TryGetValue(fieldName, out opt);
 			if (opt == null)

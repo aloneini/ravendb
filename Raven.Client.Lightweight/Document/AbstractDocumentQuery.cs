@@ -45,6 +45,7 @@ namespace Raven.Client.Document
 	{
 		protected bool isSpatialQuery;
 		protected string spatialFieldName, queryShape;
+		protected SpatialUnits? spatialUnits;
 		protected SpatialRelation spatialRelation;
 		protected double distanceErrorPct;
 		private readonly LinqPathProvider linqPathProvider;
@@ -85,7 +86,7 @@ namespace Raven.Client.Document
 
 		private int currentClauseDepth;
 
-		private KeyValuePair<string, string> lastEquality;
+	    protected KeyValuePair<string, string> lastEquality;
 
         protected Dictionary<string, RavenJToken> queryInputs = new Dictionary<string, RavenJToken>();
 
@@ -242,7 +243,7 @@ namespace Raven.Client.Document
 		/// </summary>
 		public DocumentConvention DocumentConvention
 		{
-			get { return theSession.Conventions; }
+			get { return conventions; }
 		}
 
 #if !SILVERLIGHT
@@ -406,9 +407,26 @@ namespace Raven.Client.Document
 		/// <param name = "radius">The radius.</param>
 		/// <param name = "latitude">The latitude.</param>
 		/// <param name = "longitude">The longitude.</param>
-        /// <param name = "radiusUnits">The units of the <paramref name="radius"/></param>
-		IDocumentQueryCustomization IDocumentQueryCustomization.WithinRadiusOf(double radius, double latitude,
-																			   double longitude, SpatialUnits radiusUnits)
+		IDocumentQueryCustomization IDocumentQueryCustomization.WithinRadiusOf(double radius, double latitude, double longitude)
+		{
+			GenerateQueryWithinRadiusOf(Constants.DefaultSpatialFieldName, radius, latitude, longitude);
+			return this;
+		}
+
+		IDocumentQueryCustomization IDocumentQueryCustomization.WithinRadiusOf(string fieldName, double radius, double latitude, double longitude)
+		{
+			GenerateQueryWithinRadiusOf(fieldName, radius, latitude, longitude);
+			return this;
+		}
+
+		/// <summary>
+		///   Filter matches to be inside the specified radius
+		/// </summary>
+		/// <param name = "radius">The radius.</param>
+		/// <param name = "latitude">The latitude.</param>
+		/// <param name = "longitude">The longitude.</param>
+		/// <param name = "radiusUnits">The units of the <paramref name="radius"/></param>
+		IDocumentQueryCustomization IDocumentQueryCustomization.WithinRadiusOf(double radius, double latitude, double longitude, SpatialUnits radiusUnits)
 		{
 			GenerateQueryWithinRadiusOf(Constants.DefaultSpatialFieldName, radius, latitude, longitude, radiusUnits: radiusUnits);
 			return this;
@@ -436,25 +454,24 @@ namespace Raven.Client.Document
 		/// <summary>
 		///   Filter matches to be inside the specified radius
 		/// </summary>
-        protected TSelf GenerateQueryWithinRadiusOf(string fieldName, double radius, double latitude, double longitude, double distanceErrorPct = 0.025, SpatialUnits radiusUnits = SpatialUnits.Kilometers)
+        protected TSelf GenerateQueryWithinRadiusOf(string fieldName, double radius, double latitude, double longitude, double distanceErrorPct = 0.025, SpatialUnits? radiusUnits = null)
 		{
-			return GenerateSpatialQueryData(fieldName, SpatialIndexQuery.GetQueryShapeFromLatLon(latitude, longitude, radius, radiusUnits), SpatialRelation.Within, distanceErrorPct);
+			return GenerateSpatialQueryData(fieldName, SpatialIndexQuery.GetQueryShapeFromLatLon(latitude, longitude, radius), SpatialRelation.Within, distanceErrorPct, radiusUnits);
 		}
 
-		protected TSelf GenerateSpatialQueryData(string fieldName, string shapeWKT, SpatialRelation relation, double distanceErrorPct = 0.025)
+		protected TSelf GenerateSpatialQueryData(string fieldName, string shapeWKT, SpatialRelation relation, double distanceErrorPct = 0.025, SpatialUnits? radiusUnits = null)
 		{
 			isSpatialQuery = true;
 			spatialFieldName = fieldName;
 			queryShape = new WktSanitizer().Sanitize(shapeWKT);
 			spatialRelation = relation;
 			this.distanceErrorPct = distanceErrorPct;
+			spatialUnits = radiusUnits;
 			return (TSelf) this;
 		}
 
 		protected TSelf GenerateSpatialQueryData(string fieldName, SpatialCriteria criteria, double distanceErrorPct = 0.025)
 		{
-
-
 			var wkt = criteria.Shape as string;
 			if (wkt == null && criteria.Shape != null)
 			{
@@ -544,7 +561,7 @@ namespace Raven.Client.Document
 			timeout = waitTimeout;
 		}
 
-		protected QueryOperation InitializeQueryOperation(Action<string, string> setOperationHeaders)
+		protected internal QueryOperation InitializeQueryOperation(Action<string, string> setOperationHeaders)
 		{
 			var indexQuery = GetIndexQuery(isAsync: false);
 
@@ -569,6 +586,31 @@ namespace Raven.Client.Document
 			var query = queryText.ToString();
 			var indexQuery = GenerateIndexQuery(query);
 			return indexQuery;
+		}
+#if !SILVERLIGHT
+		public FacetResults GetFacets(string facetSetupDoc, int facetStart, int? facetPageSize)
+		{
+			var q = GetIndexQuery(false);
+			return DatabaseCommands.GetFacets(indexName, q, facetSetupDoc, facetStart, facetPageSize);
+		}
+
+		public FacetResults GetFacets(List<Facet> facets, int facetStart, int? facetPageSize)
+		{
+			var q = GetIndexQuery(false);
+			return DatabaseCommands.GetFacets(indexName, q, facets, facetStart, facetPageSize);
+		}
+#endif
+
+		public Task<FacetResults> GetFacetsAsync(string facetSetupDoc, int facetStart, int? facetPageSize)
+		{
+			var q = GetIndexQuery(true);
+			return AsyncDatabaseCommands.GetFacetsAsync(indexName, q, facetSetupDoc, facetStart, facetPageSize);
+		}
+
+		public Task<FacetResults> GetFacetsAsync(List<Facet> facets, int facetStart, int? facetPageSize)
+		{
+			var q = GetIndexQuery(true);
+			return AsyncDatabaseCommands.GetFacetsAsync(indexName, q, facets, facetStart, facetPageSize);
 		}
 
 #if !SILVERLIGHT  && !NETFX_CORE
@@ -655,7 +697,7 @@ namespace Raven.Client.Document
 			if (queryOperation == null)
 			{
 				ExecuteBeforeQueryListeners();
-				queryOperation = InitializeQueryOperation(headers.Add);
+				queryOperation = InitializeQueryOperation((key, val) => headers[key] =val);
 			}
 
 			var lazyQueryOperation = new LazyQueryOperation<T>(queryOperation, afterQueryExecutedCallback, includes);
@@ -962,18 +1004,18 @@ If you really want to do in memory filtering on the data returned from the query
 		/// <param name = "whereClause">The where clause.</param>
 		public void Where(string whereClause)
 		{
-			AppendSpaceIfRequired();
+			AppendSpaceIfNeeded(queryText.Length > 0 && queryText[queryText.Length - 1] != '(');
 			queryText.Append(whereClause);
 		}
 
-		private void AppendSpaceIfRequired()
+		private void AppendSpaceIfNeeded(bool shouldAppendSpace)
 		{
-			if (queryText.Length > 0 && queryText[queryText.Length - 1] != '(')
+			if (shouldAppendSpace)
 			{
 				queryText.Append(" ");
 			}
 		}
-
+			
 		/// <summary>
 		///   Matches exact value
 		/// </summary>
@@ -1014,7 +1056,7 @@ If you really want to do in memory filtering on the data returned from the query
 		public void OpenSubclause()
 		{
 			currentClauseDepth++;
-			AppendSpaceIfRequired();
+			AppendSpaceIfNeeded(queryText.Length > 0 && queryText[queryText.Length - 1] != '(');
 			NegateIfNeeded();
 			queryText.Append("(");
 		}
@@ -1049,14 +1091,11 @@ If you really want to do in memory filtering on the data returned from the query
 			EnsureValidFieldName(whereParams);
 			var transformToEqualValue = TransformToEqualValue(whereParams);
 			lastEquality = new KeyValuePair<string, string>(whereParams.FieldName, transformToEqualValue);
-			if (queryText.Length > 0 && queryText[queryText.Length - 1] != '(')
-			{
-				queryText.Append(" ");
-			}
 
+			AppendSpaceIfNeeded(queryText.Length > 0 && queryText[queryText.Length - 1] != '(');
 			NegateIfNeeded();
 
-			queryText.Append(whereParams.FieldName);
+			queryText.Append(RavenQuery.EscapeField(whereParams.FieldName));
 			queryText.Append(":");
 			queryText.Append(transformToEqualValue);
 		}
@@ -1101,9 +1140,7 @@ If you really want to do in memory filtering on the data returned from the query
 		/// </summary>
 		public void WhereIn(string fieldName, IEnumerable<object> values)
 		{
-			if (queryText.Length > 0 && char.IsWhiteSpace(queryText[queryText.Length - 1]) == false)
-				queryText.Append(" ");
-
+			AppendSpaceIfNeeded(queryText.Length > 0 && char.IsWhiteSpace(queryText[queryText.Length - 1]) == false);
 			NegateIfNeeded();
 
 			var list = values.ToList();
@@ -1200,10 +1237,7 @@ If you really want to do in memory filtering on the data returned from the query
 		/// <returns></returns>
 		public void WhereBetween(string fieldName, object start, object end)
 		{
-			if (queryText.Length > 0)
-			{
-				queryText.Append(" ");
-			}
+			AppendSpaceIfNeeded(queryText.Length > 0);
 
 			if ((start ?? end) != null)
 				sortByHints.Add(new KeyValuePair<string, Type>(fieldName, (start ?? end).GetType()));
@@ -1212,7 +1246,7 @@ If you really want to do in memory filtering on the data returned from the query
 
 			fieldName = GetFieldNameForRangeQueries(fieldName, start, end);
 
-			queryText.Append(fieldName).Append(":{");
+			queryText.Append(RavenQuery.EscapeField(fieldName)).Append(":{");
 			queryText.Append(start == null ? "*" : TransformToRangeValue(new WhereParams{Value = start, FieldName = fieldName}));
 			queryText.Append(" TO ");
 			queryText.Append(end == null ? "NULL" : TransformToRangeValue(new WhereParams{Value = end, FieldName = fieldName}));
@@ -1228,10 +1262,7 @@ If you really want to do in memory filtering on the data returned from the query
 		/// <returns></returns>
 		public void WhereBetweenOrEqual(string fieldName, object start, object end)
 		{
-			if (queryText.Length > 0)
-			{
-				queryText.Append(" ");
-			}
+			AppendSpaceIfNeeded(queryText.Length > 0);
 			if ((start ?? end) != null)
 				sortByHints.Add(new KeyValuePair<string, Type>(fieldName, (start ?? end).GetType()));
 
@@ -1239,7 +1270,7 @@ If you really want to do in memory filtering on the data returned from the query
 
 			fieldName = GetFieldNameForRangeQueries(fieldName, start, end);
 
-			queryText.Append(fieldName).Append(":[");
+			queryText.Append(RavenQuery.EscapeField(fieldName)).Append(":[");
 			queryText.Append(start == null ? "*" : TransformToRangeValue(new WhereParams { Value = start, FieldName = fieldName }));
 			queryText.Append(" TO ");
 			queryText.Append(end == null ? "NULL" : TransformToRangeValue(new WhereParams { Value = end, FieldName = fieldName }));
@@ -1706,6 +1737,9 @@ If you really want to do in memory filtering on the data returned from the query
 		{
 			if(isSpatialQuery)
 			{
+				if (indexName == "dynamic" || indexName.StartsWith("dynamic/"))
+					throw new NotSupportedException("Dynamic indexes do not support spatial queries. A static index, with spatial field(s), must be defined.");
+
 				return new SpatialIndexQuery
 				{
 					GroupBy = groupByFields,
@@ -1719,6 +1753,7 @@ If you really want to do in memory filtering on the data returned from the query
 					FieldsToFetch = fieldsToFetch,
 					SpatialFieldName = spatialFieldName,
 					QueryShape = queryShape,
+					RadiusUnitOverride = spatialUnits,
 					SpatialRelation = spatialRelation,
 					DistanceErrorPercentage = distanceErrorPct,
 					DefaultField = defaultField,
@@ -2052,6 +2087,14 @@ If you really want to do in memory filtering on the data returned from the query
 			return QueryResultAsync
 				.ContinueWith(r => r.Result.TotalResults);
 		}
+		public string GetMemberQueryPathForOrderBy(Expression expression)
+		{
+			var memberQueryPath = GetMemberQueryPath(expression);
+			var memberExpression = linqPathProvider.GetMemberExpression(expression);
+			if (DocumentConvention.UsesRangeType(memberExpression.Type))
+				return memberQueryPath + "_Range";
+			return memberQueryPath;
+		}
 
 		public string GetMemberQueryPath(Expression expression)
 		{
@@ -2065,7 +2108,6 @@ If you really want to do in memory filtering on the data returned from the query
 				? conventions.FindPropertyNameForDynamicIndex(typeof(T), indexName, "", result.Path)
 				: conventions.FindPropertyNameForIndex(typeof(T), indexName, "", result.Path);
 			return propertyName;
-
 		}
 	}
 }

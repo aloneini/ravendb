@@ -11,6 +11,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Raven.Abstractions;
+using Raven.Abstractions.Extensions;
 using Raven.Abstractions.Logging;
 using Raven.Abstractions.Util;
 using Raven.Database.Impl;
@@ -68,10 +69,13 @@ namespace Raven.Database.Server.Abstractions
 			get { return response.ContentType; }
 			set { response.ContentType = value; }
 		}
+
+		// for HTTP Listener, we never actually buffer, but we pretend we do
+		// so we won't send the headers after we already sent data to the client
+		private bool bufferOutput = true;
 		public bool BufferOutput
 		{
-			get { return false; }
-			set { }
+			get { return bufferOutput; }
 		}
 
 		public void Redirect(string url)
@@ -110,6 +114,12 @@ namespace Raven.Database.Server.Abstractions
 		public NameValueCollection GetHeaders()
 		{
 			return response.Headers;
+		}
+
+		public IDisposable Streaming()
+		{
+			bufferOutput = false;
+			return new DisposableAction(() => { bufferOutput = true; });
 		}
 
 		public Task WriteAsync(string data)

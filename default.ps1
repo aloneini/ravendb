@@ -29,7 +29,7 @@ properties {
 	$web_dlls = ( @( "Raven.Web.???" ) + $core_db_dlls) |
 		ForEach-Object { 
 			if ([System.IO.Path]::IsPathRooted($_)) { return $_ }
-			return "$build_dir\$_"
+			return "$build_dir\web\$_"
 		}
 	
 	$web_files = @("..\DefaultConfigs\web.config" )
@@ -50,7 +50,7 @@ properties {
 	$silverlight_dlls = @("Raven.Client.Silverlight.???", "AsyncCtpLibrary_Silverlight5.???", "DH.Scrypt.???", "Microsoft.CompilerServices.AsyncTargetingPack.Silverlight5.???") |
 		ForEach-Object { 
 			if ([System.IO.Path]::IsPathRooted($_)) { return $_ }
-			return "$build_dir\$_"
+			return "$build_dir\sl5\$_"
 		}
  
 	$all_client_dlls = ( @( "Raven.Client.Embedded.???") + $client_dlls + $core_db_dlls ) |
@@ -91,12 +91,13 @@ task Init -depends Verify40, Clean {
 		Foreach-Object { $_ -replace "{commit}", $commit } |
 		Set-Content "$base_dir\CommonAssemblyInfo.cs" -Encoding UTF8
 	
-	
 	New-Item $release_dir -itemType directory -ErrorAction SilentlyContinue | Out-Null
 	New-Item $build_dir -itemType directory -ErrorAction SilentlyContinue | Out-Null
 }
 
 task Compile -depends Init {
+	
+	"Dummy file so msbuild knows there is one here before embedding as resource." | Out-File "$base_dir\Raven.Database\Server\WebUI\Raven.Studio.xap"
 	
 	$v4_net_version = (ls "$env:windir\Microsoft.NET\Framework\v4.0*").Name
 	
@@ -114,16 +115,8 @@ task Compile -depends Init {
 	}
 	
 	Write-Host "Compiling with '$global:configuration' configuration" -ForegroundColor Yellow
-	exec { &"C:\Windows\Microsoft.NET\Framework\$v4_net_version\MSBuild.exe" "$sln_file" /p:OutDir="$buildartifacts_dir\" /p:Configuration=$global:configuration /p:nowarn="1591 1573" }
-	remove-item "$build_dir\nlog.config" -force  -ErrorAction SilentlyContinue 
-	
-	Copy-Item (Get-DependencyPackageFiles 'NLog.2') $build_dir -force
-	Copy-Item (Get-DependencyPackageFiles 'Rx-Interfaces') $build_dir -force
-	Copy-Item (Get-DependencyPackageFiles 'Rx-Core') $build_dir -force
-	Copy-Item (Get-DependencyPackageFiles 'Rx-Linq') $build_dir -force
-	Copy-Item (Get-DependencyPackageFiles 'Rx-PlatformServices') $build_dir -force
-	Copy-Item (Get-DependencyPackageFiles 'Rx-Xaml') $build_dir -force
-	
+	exec { &"C:\Windows\Microsoft.NET\Framework\$v4_net_version\MSBuild.exe" "$sln_file" /p:Configuration=$global:configuration /p:nowarn="1591 1573" }
+	remove-item "$build_dir\nlog.config" -force  -ErrorAction SilentlyContinue
 }
 
 task FullStorageTest {
@@ -193,7 +186,7 @@ task TestSilverlight -depends Compile, CopyServer {
 	
 		$statLight = Get-PackagePath StatLight
 		$statLight = "$statLight\tools\StatLight.exe"
-		&$statLight "--XapPath=.\build\Raven.Tests.Silverlight.xap" "--OverrideTestProvider=MSTestWithCustomProvider" "--ReportOutputFile=.\build\Raven.Tests.Silverlight.Results.xml" 
+		&$statLight "--XapPath=.\build\sl5\Raven.Tests.Silverlight.xap" "--OverrideTestProvider=MSTestWithCustomProvider" "--ReportOutputFile=.\build\Raven.Tests.Silverlight.Results.xml" 
 	}
 	finally
 	{
@@ -318,7 +311,7 @@ task CopySmuggler {
 }
 
 task CopyBackup {
-	Copy-Item $build_dir\Raven.Abstractions.??? $build_dir\Output\Smuggler
+	Copy-Item $build_dir\Raven.Abstractions.??? $build_dir\Output\Backup
 	Copy-Item $build_dir\Raven.Backup.??? $build_dir\Output\Backup
 }
 
@@ -470,35 +463,44 @@ task CreateNugetPackages -depends Compile {
 	New-Item $nuget_dir -Type directory | Out-Null
 	
 	New-Item $nuget_dir\RavenDB.Client\lib\net40 -Type directory | Out-Null
+	New-Item $nuget_dir\RavenDB.Client\lib\net45 -Type directory | Out-Null
 	New-Item $nuget_dir\RavenDB.Client\lib\sl50 -Type directory | Out-Null
 	Copy-Item $base_dir\NuGet\RavenDB.Client.nuspec $nuget_dir\RavenDB.Client\RavenDB.Client.nuspec
 	
 	@("Raven.Abstractions.???", "Raven.Client.Lightweight.???") |% { Copy-Item "$build_dir\$_" $nuget_dir\RavenDB.Client\lib\net40 }
-	@("Raven.Client.Silverlight.???", "AsyncCtpLibrary_Silverlight5.???") |% { Copy-Item "$build_dir\$_" $nuget_dir\RavenDB.Client\lib\sl50	}
-		
+	@("Raven.Abstractions-4.5.???", "Raven.Client.Lightweight-4.5.???") |% { Copy-Item "$build_dir\net45\$_" $nuget_dir\RavenDB.Client\lib\net45 }
+	@("Raven.Client.Silverlight.???", "AsyncCtpLibrary_Silverlight5.???") |% { Copy-Item "$build_dir\sl5\$_" $nuget_dir\RavenDB.Client\lib\sl50	}
+	
 	New-Item $nuget_dir\RavenDB.Client.MvcIntegration\lib\net40 -Type directory | Out-Null
 	Copy-Item $base_dir\NuGet\RavenDB.Client.MvcIntegration.nuspec $nuget_dir\RavenDB.Client.MvcIntegration\RavenDB.Client.MvcIntegration.nuspec
 	@("Raven.Client.MvcIntegration.???") |% { Copy-Item "$build_dir\$_" $nuget_dir\RavenDB.Client.MvcIntegration\lib\net40 }
 		
 	New-Item $nuget_dir\RavenDB.Database\lib\net40 -Type directory | Out-Null
+	New-Item $nuget_dir\RavenDB.Database\lib\net45 -Type directory | Out-Null
 	Copy-Item $base_dir\NuGet\RavenDB.Database.nuspec $nuget_dir\RavenDB.Database\RavenDB.Database.nuspec
 	@("Raven.Abstractions.???", "Raven.Database.???", "BouncyCastle.Crypto.???",
 		 "Esent.Interop.???", "ICSharpCode.NRefactory.???", "ICSharpCode.NRefactory.CSharp.???", "Mono.Cecil.???", "Lucene.Net.???", "Lucene.Net.Contrib.Spatial.NTS.???",
 		 "Jint.Raven.???", "Spatial4n.Core.NTS.???", "GeoAPI.dll", "NetTopologySuite.dll", "PowerCollections.dll", "AWS.Extensions.???", "AWSSDK.???") `
 		 |% { Copy-Item "$build_dir\$_" $nuget_dir\RavenDB.Database\lib\net40 }
+	@("Raven.Abstractions-4.5.???", "Raven.Database-4.5.???", "BouncyCastle.Crypto.???",
+		 "Esent.Interop.???", "ICSharpCode.NRefactory.???", "ICSharpCode.NRefactory.CSharp.???", "Mono.Cecil.???", "Lucene.Net.???", "Lucene.Net.Contrib.Spatial.NTS.???",
+		 "Jint.Raven.???", "Spatial4n.Core.NTS.???", "GeoAPI.dll", "NetTopologySuite.dll", "PowerCollections.dll", "AWS.Extensions.???", "AWSSDK.???") `
+		 |% { Copy-Item "$build_dir\net45\$_" $nuget_dir\RavenDB.Database\lib\net45 }
 	
 	New-Item $nuget_dir\RavenDB.Server -Type directory | Out-Null
 	Copy-Item $base_dir\NuGet\RavenDB.Server.nuspec $nuget_dir\RavenDB.Server\RavenDB.Server.nuspec
 	New-Item $nuget_dir\RavenDB.Server\tools -Type directory | Out-Null
 	@("Esent.Interop.???", "ICSharpCode.NRefactory.???", "ICSharpCode.NRefactory.CSharp.???", "Mono.Cecil.???", "Lucene.Net.???", "Lucene.Net.Contrib.Spatial.NTS.???",
 		"Spatial4n.Core.NTS.???", "GeoAPI.dll", "NetTopologySuite.dll", "PowerCollections.dll",	"NewtonSoft.Json.???", "NLog.???", "Jint.Raven.???",
-		"Raven.Abstractions.???", "Raven.Database.???", "Raven.Server.???", "AWS.Extensions.???", "AWSSDK.???") |% { Copy-Item "$build_dir\$_" $nuget_dir\RavenDB.Server\tools }
+		"Raven.Abstractions.???", "Raven.Database.???", "Raven.Server.???", "Raven.Smuggler.???", "AWS.Extensions.???", "AWSSDK.???") |% { Copy-Item "$build_dir\$_" $nuget_dir\RavenDB.Server\tools }
+	Copy-Item (Get-DependencyPackageFiles 'Microsoft.CompilerServices.AsyncTargetingPack' -FrameworkVersion net40) $nuget_dir\RavenDB.Server\tools
 	Copy-Item $base_dir\DefaultConfigs\RavenDb.exe.config $nuget_dir\RavenDB.Server\tools\Raven.Server.exe.config
 
 	New-Item $nuget_dir\RavenDB.Embedded\lib\net40 -Type directory | Out-Null
+	New-Item $nuget_dir\RavenDB.Embedded\lib\net45 -Type directory | Out-Null
 	Copy-Item $base_dir\NuGet\RavenDB.Embedded.nuspec $nuget_dir\RavenDB.Embedded\RavenDB.Embedded.nuspec
 	@("Raven.Client.Embedded.???") |% { Copy-Item "$build_dir\$_" $nuget_dir\RavenDB.Embedded\lib\net40 }
-	New-Item $nuget_dir\RavenDB.Embedded\tools -Type directory | Out-Null
+	@("Raven.Client.Embedded-4.5.???") |% { Copy-Item "$build_dir\net45\$_" $nuget_dir\RavenDB.Embedded\lib\net45 }
 	
 	# Client packages
 	@("Authorization", "UniqueConstraints") | Foreach-Object { 
@@ -526,14 +528,15 @@ task CreateNugetPackages -depends Compile {
 	
 	New-Item $nuget_dir\RavenDB.AspNetHost\content -Type directory | Out-Null
 	New-Item $nuget_dir\RavenDB.AspNetHost\lib\net40 -Type directory | Out-Null
-	@("Raven.Web.???") |% { Copy-Item "$build_dir\$_" $nuget_dir\RavenDB.AspNetHost\lib\net40 }
+	@("Raven.Web.???") |% { Copy-Item "$build_dir\web\$_" $nuget_dir\RavenDB.AspNetHost\lib\net40 }
 	Copy-Item $base_dir\NuGet\RavenDB.AspNetHost.nuspec $nuget_dir\RavenDB.AspNetHost\RavenDB.AspNetHost.nuspec
-	Copy-Item $base_dir\DefaultConfigs\Nupack.Web.config $nuget_dir\RavenDB.AspNetHost\content\Web.config.transform
-	New-Item $nuget_dir\RavenDB.AspNetHost\tools -Type directory | Out-Null
+	Copy-Item $base_dir\DefaultConfigs\NuGet.AspNetHost.Web.config $nuget_dir\RavenDB.AspNetHost\content\Web.config.transform
 	
 	New-Item $nuget_dir\RavenDB.Tests.Helpers\lib\net40 -Type directory | Out-Null
+	New-Item $nuget_dir\RavenDB.Tests.Helpers\lib\net45 -Type directory | Out-Null
 	Copy-Item $base_dir\NuGet\RavenDB.Tests.Helpers.nuspec $nuget_dir\RavenDB.Tests.Helpers\RavenDB.Tests.Helpers.nuspec
-	@("Raven.Tests.Helpers.???") |% { Copy-Item "$build_dir\$_" $nuget_dir\RavenDB.Tests.Helpers\lib\net40 }
+	@("Raven.Tests.Helpers.???", "Raven.Server.???") |% { Copy-Item "$build_dir\$_" $nuget_dir\RavenDB.Tests.Helpers\lib\net40 }
+	@("Raven.Tests.Helpers-4.5.???", "Raven.Server-4.5.???") |% { Copy-Item "$build_dir\net45\$_" $nuget_dir\RavenDB.Tests.Helpers\lib\net45 }
 	New-Item $nuget_dir\RavenDB.Tests.Helpers\content -Type directory | Out-Null
 	Copy-Item $base_dir\NuGet\RavenTests $nuget_dir\RavenDB.Tests.Helpers\content\RavenTests -Recurse
 	

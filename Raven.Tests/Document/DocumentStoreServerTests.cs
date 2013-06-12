@@ -1285,5 +1285,152 @@ namespace Raven.Tests.Document
 			               	};
 			Assert.DoesNotThrow(() => documentStore.DatabaseCommands.PutAttachment(key, null, new MemoryStream(new byte[] {0, 1, 2}), metadata));
 		}
+
+		[Fact]
+		public void Can_patch_existing_document_when_present()
+		{
+			var company = new Company {Name = "Hibernating Rhinos"};
+
+			using (var session = documentStore.OpenSession())
+			{
+				session.Store(company);
+				session.SaveChanges();
+			}
+
+			documentStore.DatabaseCommands.Patch(
+				company.Id,
+				new[]
+				{
+					new PatchRequest
+					{
+						Type = PatchCommandType.Set,
+						Name = "Name",
+						Value = "Existing",
+					}
+				},
+				new[]
+				{
+					new PatchRequest
+					{
+						Type = PatchCommandType.Set,
+						Name = "Name",
+						Value = "New",
+					}
+				},
+				new RavenJObject());
+
+			using (var session = documentStore.OpenSession())
+			{
+				var company2 = session.Load<Company>(company.Id);
+
+				Assert.NotNull(company2);
+				Assert.Equal(company2.Name, "Existing");
+			}
+		}
+
+		[Fact]
+		public void Can_patch_default_document_when_missing()
+		{
+			documentStore.DatabaseCommands.Patch(
+				"Company/1",
+				new[]
+				{
+					new PatchRequest
+					{
+						Type = PatchCommandType.Set,
+						Name = "Name",
+						Value = "Existing",
+					}
+				},
+				new[]
+				{
+					new PatchRequest
+					{
+						Type = PatchCommandType.Set,
+						Name = "Name",
+						Value = "New",
+					}
+				},
+				new RavenJObject());
+
+			using (var session = documentStore.OpenSession())
+			{
+				var company = session.Load<Company>("Company/1");
+
+				Assert.NotNull(company);
+				Assert.Equal(company.Name, "New");
+			}
+		}
+
+		[Fact]
+		public void Should_not_throw_when_ignore_missing_true()
+		{
+			Assert.DoesNotThrow(
+				() => documentStore.DatabaseCommands.Patch(
+					"Company/1",
+					new[]
+					{
+						new PatchRequest
+						{
+							Type = PatchCommandType.Set,
+							Name = "Name",
+							Value = "Existing",
+						}
+					}));
+		
+			Assert.DoesNotThrow(
+				() => documentStore.DatabaseCommands.Patch(
+					"Company/1",
+					new[]
+					{
+						new PatchRequest
+						{
+							Type = PatchCommandType.Set,
+							Name = "Name",
+							Value = "Existing",
+						}
+					}, true));
+		}
+
+		[Fact]
+		public void Should_throw_when_ignore_missing_false()
+		{
+			Assert.Throws<DocumentDoesNotExistsException>(
+				() => documentStore.DatabaseCommands.Patch(
+					"Company/1",
+					new[]
+					{
+						new PatchRequest
+						{
+							Type = PatchCommandType.Set,
+							Name = "Name",
+							Value = "Existing",
+						}
+					}, false));
+		}
+
+		[Fact]
+		public void Should_return_false_on_batch_delete_when_document_missing()
+		{
+			BatchResult[] batchResult = documentStore.DatabaseCommands.Batch(new[] { new DeleteCommandData { Key = "Company/1" } });
+
+			Assert.NotNull(batchResult);
+			Assert.Equal(1, batchResult.Length);
+			Assert.NotNull(batchResult[0].Deleted);
+			Assert.False(batchResult[0].Deleted ?? true);
+		}
+
+		[Fact]
+		public void Should_return_true_on_batch_delete_when_document_present()
+		{
+			documentStore.DatabaseCommands.Put("Company/1", null, new RavenJObject(), new RavenJObject());
+			
+			BatchResult[] batchResult = documentStore.DatabaseCommands.Batch(new[] { new DeleteCommandData { Key = "Company/1" } });
+
+			Assert.NotNull(batchResult);
+			Assert.Equal(1, batchResult.Length);
+			Assert.NotNull(batchResult[0].Deleted);
+			Assert.True(batchResult[0].Deleted ?? false);
+		}
 	}
 }

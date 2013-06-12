@@ -88,8 +88,12 @@ namespace Raven.Database.Config
 
 			ServerName = ravenSettings.ServerName.Value;
 
+			MaxStepsForScript = ravenSettings.MaxStepsForScript.Value;
+			AdditionalStepsForScriptBasedOnDocumentSize = ravenSettings.AdditionalStepsForScriptBasedOnDocumentSize.Value;
+
 			// Index settings
 			MaxIndexingRunLatency = ravenSettings.MaxIndexingRunLatency.Value;
+			MaxIndexWritesBeforeRecreate = ravenSettings.MaxIndexWritesBeforeRecreate.Value;
 
 			MaxNumberOfItemsToIndexInSingleBatch = ravenSettings.MaxNumberOfItemsToIndexInSingleBatch.Value;
 
@@ -230,6 +234,19 @@ namespace Raven.Database.Config
 
 			var exportedValues = Container.GetExportedValues<IStartupTask>().ToArray();
 		}
+
+		public List<string> ActiveBundles
+		{
+			get
+			{
+				var activeBundles = Settings["Raven/ActiveBundles"] ?? "";
+
+				return activeBundles.Split(new[] {';'}, StringSplitOptions.RemoveEmptyEntries)
+				                    .Select(x => x.Trim())
+				                    .ToList();
+
+			}
+		} 
 
 		private ComposablePartCatalog GetUnfilteredCatalogs(ICollection<ComposablePartCatalog> catalogs)
 		{
@@ -521,7 +538,11 @@ namespace Raven.Database.Config
 		/// Allowed values: All, Get, None
 		/// Default: Get
 		/// </summary>
-		public AnonymousUserAccessMode AnonymousUserAccessMode { get; set; }
+		public AnonymousUserAccessMode AnonymousUserAccessMode
+		{
+			get { return anonymousUserAccessMode; }
+			set { anonymousUserAccessMode = value; }
+		}
 
 		/// <summary>
 		/// If set local request don't require authentication
@@ -612,7 +633,7 @@ namespace Raven.Database.Config
 				ResetContainer();
 				// remove old directory catalog
 				var matchingCatalogs = Catalog.Catalogs.OfType<DirectoryCatalog>()
-					.Concat(Catalog.Catalogs.OfType<FilteredCatalog>()
+					.Concat(Catalog.Catalogs.OfType<Raven.Database.Plugins.Catalogs.FilteredCatalog>()
 								.Select(x => x.CatalogToFilter as DirectoryCatalog)
 								.Where(x => x != null)
 					)
@@ -665,6 +686,7 @@ namespace Raven.Database.Config
 		private string indexStoragePath;
 		private int? maxNumberOfParallelIndexTasks;
 		private int initialNumberOfItemsToIndexInSingleBatch;
+		private AnonymousUserAccessMode anonymousUserAccessMode;
 		/// <summary>
 		/// The expiration value for documents in the internal managed cache
 		/// </summary>
@@ -726,6 +748,21 @@ namespace Raven.Database.Config
 		/// The server name
 		/// </summary>
 		public string ServerName { get; set; }
+		
+		/// <summary>
+		/// The maximum number of steps (instructions) to give a script before timing out.
+		/// Default: 10,000
+		/// </summary>
+		public int MaxStepsForScript { get; set; }
+
+		/// <summary>
+		/// The number of additional steps to add to a given script based on the processed document's quota.
+		/// Set to 0 to give use a fixed size quota. This value is multiplied with the doucment size.
+		/// Default: 5
+		/// </summary>
+		public int AdditionalStepsForScriptBasedOnDocumentSize { get; set; }
+
+		public int MaxIndexWritesBeforeRecreate { get; set; }
 
 		[Browsable(false)]
 		[EditorBrowsable(EditorBrowsableState.Never)]
@@ -757,7 +794,7 @@ namespace Raven.Database.Config
 				var val = Enum.Parse(typeof(AnonymousUserAccessMode), Settings["Raven/AnonymousAccess"]);
 				return (AnonymousUserAccessMode)val;
 			}
-			return AnonymousUserAccessMode.Get;
+			return AnonymousUserAccessMode.Admin;
 		}
 
 		public string GetFullUrl(string baseUrl)

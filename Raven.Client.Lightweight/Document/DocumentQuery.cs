@@ -26,7 +26,7 @@ namespace Raven.Client.Document
 	{
 
 
-	    /// <summary>
+		/// <summary>
 		/// Initializes a new instance of the <see cref="DocumentQuery{T}"/> class.
 		/// </summary>
 		public DocumentQuery(InMemoryDocumentSessionOperations session
@@ -57,8 +57,10 @@ namespace Raven.Client.Document
 		/// <typeparam name="TProjection">The type of the projection.</typeparam>
 		public IDocumentQuery<TProjection> SelectFields<TProjection>()
 		{
-			var props = typeof (TProjection).GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Select(x => x.Name).ToArray();
-			return SelectFields<TProjection>(props, props);
+			var propertyInfos = typeof (TProjection).GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+			var projections = propertyInfos.Select(x => x.Name).ToArray();
+			var fields = propertyInfos.Select(x => DocumentConvention.FindIdentityProperty(x) ? Constants.DocumentIdFieldName : x.Name).ToArray();
+			return SelectFields<TProjection>(fields, projections);
 		}
 
 	    public IDocumentQuery<T> SetResultTransformer(string resultsTransformer)
@@ -67,12 +69,24 @@ namespace Raven.Client.Document
 	        return this;
 	    }
 
-        public void SetQueryInputs(Dictionary<string, RavenJToken> queryInputs)
+		public IDocumentQuery<T> OrderByScore()
+		{
+			AddOrder(Constants.TemporaryScoreValue, false);
+			return this;
+		}
+
+		public IDocumentQuery<T> OrderByScoreDescending()
+		{
+			AddOrder(Constants.TemporaryScoreValue, true);
+			return this;
+		}
+
+		public void SetQueryInputs(Dictionary<string, RavenJToken> queryInputs)
 	    {
 	        this.queryInputs = queryInputs;
 	    }
 
-	    /// <summary>
+		/// <summary>
 		/// Selects the specified fields directly from the index
 		/// </summary>
 		/// <typeparam name="TProjection">The type of the projection.</typeparam>
@@ -117,6 +131,7 @@ namespace Raven.Client.Document
 				spatialFieldName = spatialFieldName,
 				queryShape = queryShape,
 				spatialRelation = spatialRelation,
+				spatialUnits = spatialUnits,
 				distanceErrorPct = distanceErrorPct,
 				rootTypes = {typeof(T)},
 				defaultField = defaultField,
@@ -128,7 +143,8 @@ namespace Raven.Client.Document
                 resultsTransformer = resultsTransformer,
                 queryInputs = queryInputs,
 				disableEntitiesTracking = disableEntitiesTracking,
-				disableCaching = disableCaching
+				disableCaching = disableCaching,
+                lastEquality = lastEquality
 			};
 			return documentQuery;
 		}
@@ -707,7 +723,7 @@ namespace Raven.Client.Document
 		}
 
 		/// <summary>
-        /// Sorts the query results by distance.
+		/// Sorts the query results by distance.
 		/// </summary>
 		IDocumentQuery<T> IDocumentQueryBase<T, IDocumentQuery<T>>.SortByDistance()
 		{
@@ -735,7 +751,7 @@ namespace Raven.Client.Document
 		/// <param name = "propertySelectors">Property selectors for the fields.</param>
 		public IDocumentQuery<T> OrderBy<TValue>(params Expression<Func<T, TValue>>[] propertySelectors)
 		{
-			OrderBy(propertySelectors.Select(GetMemberQueryPath).ToArray());
+			OrderBy(propertySelectors.Select(GetMemberQueryPathForOrderBy).ToArray());
 			return this;
 		}
 
@@ -759,7 +775,7 @@ namespace Raven.Client.Document
 		/// <param name = "propertySelectors">Property selectors for the fields.</param>
 		public IDocumentQuery<T> OrderByDescending<TValue>(params Expression<Func<T, TValue>>[] propertySelectors)
 		{
-			OrderByDescending(propertySelectors.Select(GetMemberQueryPath).ToArray());
+			OrderByDescending(propertySelectors.Select(GetMemberQueryPathForOrderBy).ToArray());
 			return this;
 		}
 

@@ -28,6 +28,7 @@
 		<ResourceDictionary Source="ProgressBarStyles.xaml" />
 		<ResourceDictionary Source="NumericUpDown.xaml" />
 		<ResourceDictionary Source="SplitHyperlinkButtonPopupStyle.xaml" />
+		<ResourceDictionary Source="SyntaxEditorStyles.xaml" />
 	</ResourceDictionary.MergedDictionaries>
 
 	<Style TargetType="ScrollBar">
@@ -358,8 +359,8 @@
             </Setter.Value>
         </Setter>
     </Style>
-
-    <Style x:Key="Style_ListBoxItem_Default"  TargetType="ListBoxItem">
+	
+	<Style x:Key="Style_ListBoxItem_Default"  TargetType="ListBoxItem">
         <Setter Property="Padding" Value="3" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Top" />
@@ -845,8 +846,8 @@
   <!-- LayoutRoot Grid Style -->
   <Style x:Key="LayoutRootGridStyle" TargetType="Grid">
 	<Setter Property="Background" Value="#FFFFFFFF"/>
-<!--		<Setter Property="TextOptions.TextHintingMode" Value="Animated"/>-->
-		<!--<Setter Property="TextOptions.TextFormattingMode" Value="Display"/>-->
+		<Setter Property="TextOptions.TextHintingMode" Value="Animated"/>
+		<Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
 	</Style>
 
   <!-- Content Border Style -->
@@ -2098,7 +2099,7 @@
 								<VisualState x:Name="MouseOver"/>
 							  <VisualState x:Name="Disabled">
 									<Storyboard>
-										<DoubleAnimation Duration="00:00:00" To=".55" Storyboard.TargetProperty="(UIElement.Opacity)" Storyboard.TargetName="DisabledVisualElement"/>
+                                        <DoubleAnimation Duration="00:00:00" To=".35" Storyboard.TargetProperty="(UIElement.Opacity)" Storyboard.TargetName="ContentPresenter"/>
 									</Storyboard>
 								</VisualState>
 							</VisualStateGroup>
@@ -2139,9 +2140,7 @@
 								</ContentPresenter>
 							</Grid>
 						</Border>
-						
-						<Rectangle x:Name="DisabledVisualElement" Fill="White" IsHitTestVisible="false" Opacity="0" RadiusY="3" RadiusX="3"/>
-						
+												
 						<Popup x:Name="Popup">
 							<Border x:Name="PopupBorder" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="0" HorizontalAlignment="Stretch" Height="Auto">
 								<Border.Background>
@@ -2211,7 +2210,7 @@
 														<VisualState x:Name="Unfocused" />
 													</VisualStateGroup>
 												</VisualStateManager.VisualStateGroups>
-												<Rectangle x:Name="Background" RadiusX="3" RadiusY="3" Fill="{TemplateBinding Background}" StrokeThickness="{TemplateBinding BorderThickness}" Stroke="{TemplateBinding BorderBrush}"/>
+												<Rectangle x:Name="Background" RadiusX="0" RadiusY="0" Fill="{TemplateBinding Background}" StrokeThickness="{TemplateBinding BorderThickness}" Stroke="{TemplateBinding BorderBrush}"/>
 												<ContentPresenter
 													  x:Name="contentPresenter"
 													  Content="{TemplateBinding Content}"
@@ -3548,6 +3547,43 @@
 			</Setter.Value>
 		</Setter>
 	</Style>
+
+    <Style x:Key="Style_HeaderedContentControl_SeparatedHeader" TargetType="toolkit:HeaderedContentControl">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="toolkit:HeaderedContentControl">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" MinHeight="30"/>
+                            <RowDefinition Height="*" MinHeight="40"/>
+                        </Grid.RowDefinitions>
+                        <Border BorderThickness="1" CornerRadius="4,4,0,0"  Margin="1,1,1,0" Background="{StaticResource Brush_HeaderBackground}" 
+                                BorderBrush="{StaticResource Brush_HeaderBorder}"/>
+                        <ContentPresenter Grid.Row="0" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}"/>
+                        <ContentPresenter Grid.Row="1" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="Style_HeaderedContentControl_DocumentsView" TargetType="toolkit:HeaderedContentControl">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="toolkit:HeaderedContentControl">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*" MinHeight="40"/>
+                        </Grid.RowDefinitions>
+                        <Border BorderThickness="1" CornerRadius="0,0,4,4" Grid.Row="1" BorderBrush="{StaticResource Brush_HeaderBorder}"/>
+                        <ContentPresenter Grid.Row="0" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}"/>
+                        <ContentPresenter Grid.Row="1" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <Style x:Key="Style_HeaderedContentControl_Settings" TargetType="toolkit:HeaderedContentControl">
         <Setter Property="Template">

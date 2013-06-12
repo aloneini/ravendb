@@ -38,17 +38,11 @@ namespace Raven.Client
 		/// <typeparam name="TProjection">The type of the projection.</typeparam>
 		IDocumentQuery<TProjection> SelectFields<TProjection>();
 
-        /// <summary>
-        /// Sets a transformer to use after executing a query
-        /// </summary>
-        /// <param name="resultsTransformer"></param>
-	    IDocumentQuery<T> SetResultTransformer(string resultsTransformer);
-
-        /// <summary>
-        /// Sets user defined inputs to the query
-        /// </summary>
-        /// <param name="queryInputs"></param>
-        void SetQueryInputs(Dictionary<string, RavenJToken> queryInputs);
+		/// <summary>
+		/// Sets user defined inputs to the query
+		/// </summary>
+		/// <param name="queryInputs"></param>
+		void SetQueryInputs(Dictionary<string, RavenJToken> queryInputs);
 
 #if !SILVERLIGHT
 		/// <summary>
@@ -80,5 +74,15 @@ namespace Raven.Client
 		IDocumentQuery<T> Spatial(Expression<Func<T, object>> path, Func<SpatialCriteriaFactory, SpatialCriteria> clause);
 
 		IDocumentQuery<T> Spatial(string name, Func<SpatialCriteriaFactory, SpatialCriteria> clause);
+
+		/// <summary>
+		/// Get the facets as per the specified doc with the given start and pageSize
+		/// </summary>
+		FacetResults GetFacets(string facetSetupDoc, int facetStart, int? facetPageSize);
+
+		/// <summary>
+		/// Get the facets as per the specified facets with the given start and pageSize
+		/// </summary>
+		FacetResults GetFacets(List<Facet> facets, int facetStart, int? facetPageSize);
 	}
 }

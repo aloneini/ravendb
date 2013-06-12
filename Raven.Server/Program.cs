@@ -17,6 +17,7 @@ using System.ServiceProcess;
 using System.Text;
 using System.Windows.Forms;
 using System.Xml;
+using Microsoft.Win32;
 using NDesk.Options;
 using NLog.Config;
 using Raven.Abstractions;
@@ -45,18 +46,22 @@ namespace Raven.Server
 				}
 				catch (ReflectionTypeLoadException e)
 				{
-					var sb = new StringBuilder();
-					sb.AppendLine(e.ToString());
-					foreach (var loaderException in e.LoaderExceptions)
+					WaitForUserInputAndExitWithError(GetLoaderExceptions(e), args);
+				}
+				catch (InvalidOperationException e)
+				{
+					ReflectionTypeLoadException refEx = null;
+					if (e.InnerException != null)
 					{
-						sb.AppendLine("- - - -").AppendLine();
-						sb.AppendLine(loaderException.ToString());
+						refEx = e.InnerException.InnerException as ReflectionTypeLoadException;
 					}
+					var errorMessage = refEx != null ? GetLoaderExceptions(refEx) : e.ToString();
 
-					WaitForUserInputAndExitWithError(sb.ToString(), args);
+					WaitForUserInputAndExitWithError(errorMessage, args);
 				}
 				catch (Exception e)
 				{
+					
 					EmitWarningInRed();
 
 					WaitForUserInputAndExitWithError(e.ToString(), args);
@@ -67,6 +72,19 @@ namespace Raven.Server
 				// no try catch here, we want the exception to be logged by Windows
 				ServiceBase.Run(new RavenService());
 			}
+		}
+
+		private static string GetLoaderExceptions(ReflectionTypeLoadException exception)
+		{
+			var sb = new StringBuilder();
+			sb.AppendLine(exception.ToString());
+			foreach (var loaderException in exception.LoaderExceptions)
+			{
+				sb.AppendLine("- - - -").AppendLine();
+				sb.AppendLine(loaderException.ToString());
+			}
+
+			return sb.ToString();
 		}
 
 		private static bool RunningInInteractiveMode(string[] args)
@@ -131,6 +149,8 @@ namespace Raven.Server
 				{"install", "Installs the RavenDB service", key => actionToTake= () => AdminRequired(InstallAndStart)},
 				{"user=", "Which user will be used", user=> theUser = user},
 				{"setup-perf-counters", "Setup the performance counters and the related permissions", key => actionToTake = ()=> AdminRequired(()=>SetupPerfCounters(theUser))},
+				{"allow-blank-password-use", "Allow to log on by using a Windows account that has a blank password", key => actionToTake = () => AdminRequired(() => SetLimitBlankPasswordUseRegValue(0))},
+				{"deny-blank-password-use", "Deny to log on by using a Windows account that has a blank password", key => actionToTake = () =>  AdminRequired(() => SetLimitBlankPasswordUseRegValue(1))},
 				{"service-name=", "The {0:service name} to use when installing or uninstalling the service, default to RavenDB", name => ProjectInstaller.SERVICE_NAME = name},
 				{"uninstall", "Uninstalls the RavenDB service", key => actionToTake= () => AdminRequired(EnsureStoppedAndUninstall)},
 				{"start", "Starts the RavenDB service", key => actionToTake= () => AdminRequired(StartService)},
@@ -140,7 +160,7 @@ namespace Raven.Server
 				{
 					ravenConfiguration.Settings["Raven/RunInMemory"] = "true";
 					ravenConfiguration.RunInMemory = true;
-					actionToTake = () => RunInDebugMode(AnonymousUserAccessMode.All, ravenConfiguration, launchBrowser, noLog);		
+					actionToTake = () => RunInDebugMode(AnonymousUserAccessMode.Admin, ravenConfiguration, launchBrowser, noLog);		
 				}},
 				{"debug", "Runs RavenDB in debug mode", key => actionToTake = () => RunInDebugMode(null, ravenConfiguration, launchBrowser, noLog)},
 				{"browser|launchbrowser", "After the server starts, launches the browser", key => launchBrowser = true},
@@ -257,6 +277,34 @@ namespace Raven.Server
 			var actionToTake = user.StartsWith("IIS") ? "restart IIS service" : "log in the user again";
 
 			Console.Write("User {0} has been added to Performance Monitoring Users group. Please {1} to take an effect.", user, actionToTake);
+		}
+
+		private static void SetLimitBlankPasswordUseRegValue(int value)
+		{
+			// value == 0 - disable a limit
+			// value == 1 - enable a limit
+
+			if (value != 0 && value != 1)
+				throw new ArgumentException("Allowed arguments for 'LimitBlankPasswordUse' registry value are only 0 or 1", "value");
+
+			const string registryKey = @"SYSTEM\CurrentControlSet\Control\Lsa";
+			const string policyName = "Limit local account use of blank passwords to console logon only";
+
+			var lsaKey = Registry.LocalMachine.OpenSubKey(registryKey, true);
+			if (lsaKey != null)
+			{
+				lsaKey.SetValue("LimitBlankPasswordUse", value, RegistryValueKind.DWord);
+
+				if (value == 0)
+					Console.WriteLine("You have just disabled the following security policy: '{0}' on the local machine.", policyName);
+				else
+					Console.WriteLine("You have just enabled the following security policy: '{0}' on the local machine.", policyName);
+			}
+			else
+			{
+				Console.WriteLine("Error: Could not find the registry key '{0}' in order to disable '{1}' policy.", registryKey,
+				                  policyName);
+			}
 		}
 
 		private static void ProtectConfiguration(string file)

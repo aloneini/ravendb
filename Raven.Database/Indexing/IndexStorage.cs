@@ -157,7 +157,7 @@ namespace Raven.Database.Indexing
 					if (resetTried)
 						throw new InvalidOperationException("Could not open / create index" + indexName + ", reset already tried", e);
 
-					if (recoveryTried == false)
+					if (recoveryTried == false && luceneDirectory != null)
 					{
 						recoveryTried = true;
 						startupLog.WarnException("Could not open index " + indexName + ". Trying to recover index", e);
@@ -256,7 +256,9 @@ namespace Raven.Database.Indexing
 			bool createIfMissing = true)
 		{
 			Lucene.Net.Store.Directory directory;
-			if (indexDefinitionStorage.IsNewThisSession(indexDefinition) || configuration.RunInMemory)
+			if (configuration.RunInMemory ||
+				(indexDefinition.IsMapReduce == false &&  // there is no point in creating map/reduce indexes in memory, we write the intermediate results to disk anyway
+				 indexDefinitionStorage.IsNewThisSession(indexDefinition)))
 			{
 				directory = new RAMDirectory();
 				new IndexWriter(directory, dummyAnalyzer, IndexWriter.MaxFieldLength.UNLIMITED).Dispose(); // creating index structure
@@ -366,7 +368,7 @@ namespace Raven.Database.Indexing
 													lastCommitPoint.TimeStamp));
 		}
 
-		private static void WriteIndexVersion(Lucene.Net.Store.Directory directory, IndexDefinition indexDefinition)
+		public static void WriteIndexVersion(Lucene.Net.Store.Directory directory, IndexDefinition indexDefinition)
 		{
 			var indexVersion = "index.version";
 			var version = IndexVersion;
@@ -466,7 +468,8 @@ namespace Raven.Database.Indexing
 			var currentSegmentsFileName = indexCommit.SegmentsInfo.SegmentsFileName;
 
 			File.Copy(Path.Combine(commitPointDirectory.IndexFullPath, currentSegmentsFileName),
-					  Path.Combine(commitPointDirectory.FullPath, currentSegmentsFileName));
+					  Path.Combine(commitPointDirectory.FullPath, currentSegmentsFileName),
+					  overwrite: true);
 
 			var storedCommitPoints = Directory.GetDirectories(commitPointDirectory.AllCommitPointsFullPath);
 
@@ -593,7 +596,7 @@ namespace Raven.Database.Indexing
 		internal Lucene.Net.Store.Directory MakeRAMDirectoryPhysical(RAMDirectory ramDir, string indexName)
 		{
 			var newDir = new LuceneCodecDirectory(Path.Combine(path, MonoHttpUtility.UrlEncode(IndexDefinitionStorage.FixupIndexName(indexName, path))), documentDatabase.IndexCodecs.OfType<AbstractIndexCodec>());
-			Lucene.Net.Store.Directory.Copy(ramDir, newDir, true);
+			Lucene.Net.Store.Directory.Copy(ramDir, newDir, false);
 			return newDir;
 		}
 
@@ -828,7 +831,8 @@ namespace Raven.Database.Indexing
 			int level,
 			WorkContext context,
 			IStorageActionsAccessor actions,
-			HashSet<string> reduceKeys)
+			HashSet<string> reduceKeys,
+			int inputCount)
 		{
 			Index value;
 			if (indexes.TryGetValue(index, out value) == false)
@@ -844,7 +848,7 @@ namespace Raven.Database.Indexing
 			}
 			using (EnsureInvariantCulture())
 			{
-				var reduceDocuments = new MapReduceIndex.ReduceDocuments(mapReduceIndex, viewGenerator, mappedResults, level, context, actions, reduceKeys);
+				var reduceDocuments = new MapReduceIndex.ReduceDocuments(mapReduceIndex, viewGenerator, mappedResults, level, context, actions, reduceKeys, inputCount);
 				reduceDocuments.ExecuteReduction();
 				context.RaiseIndexChangeNotification(new IndexChangeNotification
 				{
@@ -852,6 +856,11 @@ namespace Raven.Database.Indexing
 					Type = IndexChangeTypes.ReduceCompleted
 				});
 			}
+		}
+
+		internal IndexSearcherHolder.IndexSearcherHoldingState GetCurrentStateHolder(string indexName)
+		{
+			return GetIndexByName(indexName).GetCurrentStateHolder();
 		}
 
 		public IDisposable GetCurrentIndexSearcher(string indexName, out IndexSearcher searcher)
@@ -1104,6 +1113,16 @@ namespace Raven.Database.Indexing
 		{
 			Parallel.ForEach(indexes.Values, index =>
 											 index.MergeSegments());
+		}
+
+		public string IndexOnRam(string name)
+		{
+			return GetIndexByName(name).IsOnRam;
+		}
+
+		public void ForceWriteToDisk(string index)
+		{
+			GetIndexByName(index).ForceWriteToDisk();
 		}
 	}
 }

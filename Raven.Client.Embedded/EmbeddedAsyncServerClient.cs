@@ -138,9 +138,9 @@ namespace Raven.Client.Embedded
 			return new CompletedTask<JsonDocument>(databaseCommands.Get(key));
 		}
 
-		public Task<MultiLoadResult> GetAsync(string[] keys, string[] includes, bool metadataOnly = false)
+		public Task<MultiLoadResult> GetAsync(string[] keys, string[] includes, string transformer = null, Dictionary<string, RavenJToken> queryInputs = null, bool metadataOnly = false)
 		{
-			return new CompletedTask<MultiLoadResult>(databaseCommands.Get(keys, includes, metadataOnly: metadataOnly));
+			return new CompletedTask<MultiLoadResult>(databaseCommands.Get(keys, includes,transformer: transformer, queryInputs:queryInputs, metadataOnly: metadataOnly));
 		}
 
 		public Task<JsonDocument[]> GetDocumentsAsync(int start, int pageSize, bool metadataOnly = false)
@@ -199,7 +199,7 @@ namespace Raven.Client.Embedded
 			return new CompletedTask<string>(databaseCommands.PutIndex(name, indexDef, overwrite));
 		}
 
-		public Task<string> PutTransfomerAsync(string name, TransformerDefinition transformerDefinition)
+		public Task<string> PutTransformerAsync(string name, TransformerDefinition transformerDefinition)
 		{
 			return new CompletedTask<string>(databaseCommands.PutTransformer(name, transformerDefinition));
 		}
@@ -231,6 +231,36 @@ namespace Raven.Client.Embedded
 		public Task<PutResult> PutAsync(string key, Etag etag, RavenJObject document, RavenJObject metadata)
 		{
 			return new CompletedTask<PutResult>(databaseCommands.Put(key, etag, document, metadata));
+		}
+
+		public Task<RavenJObject> PatchAsync(string key, PatchRequest[] patches, bool ignoreMissing)
+		{
+			return new CompletedTask<RavenJObject>(databaseCommands.Patch(key, patches, ignoreMissing));
+		}
+
+		public Task<RavenJObject> PatchAsync(string key, PatchRequest[] patches, Etag etag)
+		{
+			return new CompletedTask<RavenJObject>(databaseCommands.Patch(key, patches, etag));
+		}
+
+		public Task<RavenJObject> PatchAsync(string key, PatchRequest[] patchesToExisting, PatchRequest[] patchesToDefault, RavenJObject defaultMetadata)
+		{
+			return new CompletedTask<RavenJObject>(databaseCommands.Patch(key, patchesToExisting, patchesToDefault, defaultMetadata));
+		}
+
+		public Task<RavenJObject> PatchAsync(string key, ScriptedPatchRequest patch, bool ignoreMissing)
+		{
+			return new CompletedTask<RavenJObject>(databaseCommands.Patch(key, patch, ignoreMissing));
+		}
+
+		public Task<RavenJObject> PatchAsync(string key, ScriptedPatchRequest patch, Etag etag)
+		{
+			return new CompletedTask<RavenJObject>(databaseCommands.Patch(key, patch, etag));
+		}
+
+		public Task<RavenJObject> PatchAsync(string key, ScriptedPatchRequest patchExisting, ScriptedPatchRequest patchDefault, RavenJObject defaultMetadata)
+		{
+			return new CompletedTask<RavenJObject>(databaseCommands.Patch(key, patchExisting, patchDefault, defaultMetadata));
 		}
 
 		public HttpJsonRequest CreateRequest(string relativeUrl, string method, bool disableRequestCompression = false)
@@ -312,6 +342,11 @@ namespace Raven.Client.Embedded
 
 		public Task<FacetResults> GetFacetsAsync( string index, IndexQuery query, string facetSetupDoc, int start = 0, int? pageSize = null ) {
 			return new CompletedTask<FacetResults>( databaseCommands.GetFacets( index, query, facetSetupDoc, start, pageSize ) );
+		}
+
+		public Task<FacetResults> GetFacetsAsync(string index, IndexQuery query, List<Facet> facets, int start = 0, int? pageSize = null)
+		{
+			return new CompletedTask<FacetResults>(databaseCommands.GetFacets(index, query, facets, start, pageSize));
 		}
 
 		public Task<LogItem[]> GetLogsAsync(bool errorsOnly)

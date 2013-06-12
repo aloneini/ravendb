@@ -12,7 +12,9 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Raven.Abstractions.Exceptions;
 using Raven.Abstractions.Json;
+using Raven.Client.Changes;
 using Raven.Client.Exceptions;
 using Raven.Client.Listeners;
 using Raven.Database.Data;
@@ -372,6 +374,7 @@ namespace Raven.Client.Embedded
 			database.DeleteTransfom(name);
 		}
 
+
 		/// <summary>
 		/// Resets the specified index
 		/// </summary>
@@ -404,7 +407,7 @@ namespace Raven.Client.Embedded
 		}
 
 		/// <summary>
-		/// Creates a transformer with the specified name, based on an transfomer definition
+		/// Creates a transformer with the specified name, based on an transformer definition
 		/// </summary>
 		public string PutTransformer(string name, TransformerDefinition indexDef)
 		{
@@ -674,37 +677,35 @@ namespace Raven.Client.Embedded
 			return batchResults;
 		}
 
-		/// <summary>
-		/// Commits the specified tx id.
-		/// </summary>
-		/// <param name="txId">The tx id.</param>
-		public void Commit(Guid txId)
+	    /// <summary>
+	    /// Commits the specified tx id.
+	    /// </summary>
+	    /// <param name="txId">The tx id.</param>
+	    public void Commit(string txId)
 		{
 			CurrentOperationContext.Headers.Value = OperationsHeaders;
 			database.Commit(txId);
 		}
 
-		/// <summary>
-		/// Rollbacks the specified tx id.
-		/// </summary>
-		/// <param name="txId">The tx id.</param>
-		public void Rollback(Guid txId)
+	    /// <summary>
+	    /// Rollbacks the specified tx id.
+	    /// </summary>
+	    /// <param name="txId">The tx id.</param>
+	    public void Rollback(string txId)
 		{
 			CurrentOperationContext.Headers.Value = OperationsHeaders;
 			database.Rollback(txId);
 		}
 
 		/// <summary>
-		/// Promotes the transaction.
+		/// Prepares the transaction on the server.
 		/// </summary>
-		/// <param name="fromTxId">From tx id.</param>
-		/// <returns></returns>
-		public byte[] PromoteTransaction(Guid fromTxId)
+		/// <param name="txId">The tx id.</param>
+		public void PrepareTransaction(string txId)
 		{
 			CurrentOperationContext.Headers.Value = OperationsHeaders;
-			return database.PromoteTransaction(fromTxId);
+			database.PrepareTransaction(txId);
 		}
-
 		/// <summary>
 		/// Returns a new <see cref="IDatabaseCommands"/> using the specified credentials
 		/// </summary>
@@ -727,17 +728,9 @@ namespace Raven.Client.Embedded
 		/// <summary>
 		/// Get the low level  bulk insert operation
 		/// </summary>
-		public ILowLevelBulkInsertOperation GetBulkInsertOperation(BulkInsertOptions options)
+		public ILowLevelBulkInsertOperation GetBulkInsertOperation(BulkInsertOptions options, IDatabaseChanges changes)
 		{
-			return new EmbeddedBulkInsertOperation(database, options);
-		}
-
-		/// <summary>
-		/// It seems that we can't promote a transaction inside the same process
-		/// </summary>
-		public bool SupportsPromotableTransactions
-		{
-			get { return false; }
+			return new EmbeddedBulkInsertOperation(database, options, changes);
 		}
 
 		/// <summary>
@@ -775,8 +768,8 @@ namespace Raven.Client.Embedded
 		{
 			CurrentOperationContext.Headers.Value = OperationsHeaders;
 			var databaseBulkOperations = new DatabaseBulkOperations(database, TransactionInformation);
-			databaseBulkOperations.UpdateByIndex(indexName, queryToUpdate, patchRequests, allowStale);
-			return new Operation(0);
+			var state = databaseBulkOperations.UpdateByIndex(indexName, queryToUpdate, patchRequests, allowStale);
+			return new Operation(0, state);
 		}
 
 		/// <summary>
@@ -790,8 +783,8 @@ namespace Raven.Client.Embedded
 		{
 			CurrentOperationContext.Headers.Value = OperationsHeaders;
 			var databaseBulkOperations = new DatabaseBulkOperations(database, RavenTransactionAccessor.GetTransactionInformation());
-			databaseBulkOperations.UpdateByIndex(indexName, queryToUpdate, patch, allowStale);
-			return new Operation(0);
+			var state = databaseBulkOperations.UpdateByIndex(indexName, queryToUpdate, patch, allowStale);
+			return new Operation(0, state);
 		}
 
 		/// <summary>
@@ -815,8 +808,8 @@ namespace Raven.Client.Embedded
 		{
 			CurrentOperationContext.Headers.Value = OperationsHeaders;
 			var databaseBulkOperations = new DatabaseBulkOperations(database, TransactionInformation);
-			databaseBulkOperations.DeleteByIndex(indexName, queryToDelete, allowStale);
-			return new Operation(0);
+			var state = databaseBulkOperations.DeleteByIndex(indexName, queryToDelete, allowStale);
+			return new Operation(0, state);
 		}
 
 		/// <summary>
@@ -904,9 +897,30 @@ namespace Raven.Client.Embedded
 		/// </summary>
 		/// <param name="key">Id of the document to patch</param>
 		/// <param name="patches">Array of patch requests</param>
-		public void Patch(string key, PatchRequest[] patches)
+		public RavenJObject Patch(string key, PatchRequest[] patches)
 		{
-			Patch(key, patches, null);
+			return Patch(key, patches, null);
+		}
+
+		/// <summary>
+		/// Sends a patch request for a specific document, ignoring the document's Etag
+		/// </summary>
+		/// <param name="key">Id of the document to patch</param>
+		/// <param name="patches">Array of patch requests</param>
+		/// <param name="ignoreMissing">true if the patch request should ignore a missing document, false to throw DocumentDoesNotExistException</param>
+		public RavenJObject Patch(string key, PatchRequest[] patches, bool ignoreMissing)
+		{
+			var batchResults = Batch(new[]
+			{
+				new PatchCommandData
+				{
+					Key = key,
+					Patches = patches
+				}
+			});
+			if (!ignoreMissing && batchResults[0].PatchResult != null && batchResults[0].PatchResult == PatchResult.DocumentDoesNotExists)
+				throw new DocumentDoesNotExistsException("Document with key " + key + " does not exist.");
+			return batchResults[0].AdditionalData;
 		}
 
 		/// <summary>
@@ -914,9 +928,30 @@ namespace Raven.Client.Embedded
 		/// </summary>
 		/// <param name="key">Id of the document to patch</param>
 		/// <param name="patch">The patch request to use (using JavaScript)</param>
-		public void Patch(string key, ScriptedPatchRequest patch)
+		public RavenJObject Patch(string key, ScriptedPatchRequest patch)
 		{
-			Patch(key, patch, null);
+			return Patch(key, patch, null);
+		}
+
+		/// <summary>
+		/// Sends a patch request for a specific document, ignoring the document's Etag
+		/// </summary>
+		/// <param name="key">Id of the document to patch</param>
+		/// <param name="patch">The patch request to use (using JavaScript)</param>
+		/// <param name="ignoreMissing">true if the patch request should ignore a missing document, false to throw DocumentDoesNotExistException</param>
+		public RavenJObject Patch(string key, ScriptedPatchRequest patch, bool ignoreMissing)
+		{
+			var batchResults = Batch(new[]
+				  {
+					  new ScriptedPatchCommandData
+					  {
+						  Key = key,
+						  Patch = patch
+					  }
+				  });
+			if (!ignoreMissing && batchResults[0].PatchResult != null && batchResults[0].PatchResult == PatchResult.DocumentDoesNotExists)
+				throw new DocumentDoesNotExistsException("Document with key " + key + " does not exist.");
+			return batchResults[0].AdditionalData;
 		}
 
 		/// <summary>
@@ -925,17 +960,40 @@ namespace Raven.Client.Embedded
 		/// <param name="key">Id of the document to patch</param>
 		/// <param name="patches">Array of patch requests</param>
 		/// <param name="etag">Require specific Etag [null to ignore]</param>
-		public void Patch(string key, PatchRequest[] patches, Etag etag)
+		public RavenJObject Patch(string key, PatchRequest[] patches, Etag etag)
 		{
-			Batch(new[]
-			      {
-				      new PatchCommandData
-				      {
-					      Key = key,
-					      Patches = patches,
-					      Etag = etag
-				      }
-			      });
+			var batchResults = Batch(new[]
+			{
+				new PatchCommandData
+				{
+					Key = key, Patches = patches, Etag = etag
+				}
+			});
+
+			return batchResults[0].AdditionalData;
+		}
+
+		/// <summary>
+		/// Sends a patch request for a specific document which may or may not currently exist
+		/// </summary>
+		/// <param name="key">Id of the document to patch</param>
+		/// <param name="patchesToExisting">Array of patch requests to apply to an existing document</param>
+		/// <param name="patchesToDefault">Array of patch requests to apply to a default document when the document is missing</param>
+		/// <param name="defaultMetadata">The metadata for the default document when the document is missing</param>
+		public RavenJObject Patch(string key, PatchRequest[] patchesToExisting, PatchRequest[] patchesToDefault, RavenJObject defaultMetadata)
+		{
+			var batchResults = Batch(new[]
+			{
+				new PatchCommandData
+				{
+					Key = key,
+					Patches = patchesToExisting,
+					PatchesIfMissing = patchesToDefault,
+					Metadata = defaultMetadata
+				}
+			});
+
+			return batchResults[0].AdditionalData;
 		}
 
 		/// <summary>
@@ -944,9 +1002,9 @@ namespace Raven.Client.Embedded
 		/// <param name="key">Id of the document to patch</param>
 		/// <param name="patch">The patch request to use (using JavaScript)</param>
 		/// <param name="etag">Require specific Etag [null to ignore]</param>
-		public void Patch(string key, ScriptedPatchRequest patch, Etag etag)
+		public RavenJObject Patch(string key, ScriptedPatchRequest patch, Etag etag)
 		{
-			Batch(new[]
+			var batchResults = Batch(new[]
 			      {
 				      new ScriptedPatchCommandData
 				      {
@@ -955,6 +1013,29 @@ namespace Raven.Client.Embedded
 					      Etag = etag
 				      }
 			      });
+			return batchResults[0].AdditionalData;
+		}
+
+		/// <summary>
+		/// Sends a patch request for a specific document which may or may not currently exist
+		/// </summary>
+		/// <param name="key">Id of the document to patch</param>
+		/// <param name="patchExisting">The patch request to use (using JavaScript) to an existing document</param>
+		/// <param name="patchDefault">The patch request to use (using JavaScript)  to a default document when the document is missing</param>
+		/// <param name="defaultMetadata">The metadata for the default document when the document is missing</param>
+		public RavenJObject Patch(string key, ScriptedPatchRequest patchExisting, ScriptedPatchRequest patchDefault, RavenJObject defaultMetadata)
+		{
+			var batchResults = Batch(new[]
+				  {
+					  new ScriptedPatchCommandData
+					  {
+						  Key = key,
+						  Patch = patchExisting,
+						  PatchIfMissing = patchDefault,
+						  Metadata = defaultMetadata
+					  }
+				  });
+			return batchResults[0].AdditionalData;
 		}
 
 		/// <summary>

@@ -14,6 +14,7 @@ using Raven.Client.Connection;
 using Raven.Client.Document;
 using Raven.Client.Document.Batches;
 using Raven.Client.Linq;
+using Raven.Abstractions.Extensions;
 
 namespace Raven.Client
 {
@@ -49,6 +50,22 @@ namespace Raven.Client
 			return source;
 		}
 
+		/// <summary>
+		/// Query the facets results for this query using aggregation
+		/// </summary>
+		public static DynamicAggregationQuery<T> AggregateBy<T>(this IQueryable<T> queryable, Expression<Func<T, object>> path)
+		{
+			return new DynamicAggregationQuery<T>(queryable, path);
+		}
+
+		/// <summary>
+		/// Query the facets results for this query using aggregation with a specific display name
+		/// </summary>
+		public static DynamicAggregationQuery<T> AggregateBy<T>(this IQueryable<T> queryable, Expression<Func<T, object>> path, string displayName)
+		{
+			return new DynamicAggregationQuery<T>(queryable, path, displayName);
+		}
+
 #if !SILVERLIGHT && !NETFX_CORE
 		/// <summary>
 		/// Query the facets results for this query using the specified facet document with the given start and pageSize
@@ -59,9 +76,7 @@ namespace Raven.Client
 		public static FacetResults ToFacets<T>( this IQueryable<T> queryable, string facetSetupDoc, int start = 0, int? pageSize = null )
 		{
 			var ravenQueryInspector = ((IRavenQueryInspector)queryable);
-			var query = ravenQueryInspector.GetIndexQuery(isAsync: false);
-
-			return ravenQueryInspector.DatabaseCommands.GetFacets( ravenQueryInspector.IndexQueried, query, facetSetupDoc, start, pageSize );
+			return ravenQueryInspector.GetFacets(facetSetupDoc, start, pageSize );
 		}
 
         /// <summary>
@@ -78,9 +93,8 @@ namespace Raven.Client
                 throw new ArgumentException("Facets must contain at least one entry", "facets");
 
             var ravenQueryInspector = ((IRavenQueryInspector)queryable);
-            var query = ravenQueryInspector.GetIndexQuery(isAsync: false);
 
-            return ravenQueryInspector.DatabaseCommands.GetFacets(ravenQueryInspector.IndexQueried, query, facetsList, start, pageSize);
+            return ravenQueryInspector.GetFacets(facetsList, start, pageSize);
         }
 
 		/// <summary>
@@ -91,9 +105,8 @@ namespace Raven.Client
 		/// <param name="pageSize">Paging PageSize. If set, overrides Facet.MaxResults</param>
 		public static FacetResults ToFacets<T>(this IDocumentQuery<T> query, string facetSetupDoc, int start = 0, int? pageSize = null)
 		{
-			var indexQuery = query.GetIndexQuery(isAsync: false);
 			var documentQuery = ((DocumentQuery<T>) query);
-			return documentQuery.DatabaseCommands.GetFacets(documentQuery.IndexQueried, indexQuery, facetSetupDoc, start, pageSize);
+			return documentQuery.GetFacets(facetSetupDoc, start, pageSize);
 		}
 
         /// <summary>
@@ -109,10 +122,9 @@ namespace Raven.Client
             if (!facetsList.Any())
                 throw new ArgumentException("Facets must contain at least one entry", "facets");
 
-            var indexQuery = query.GetIndexQuery(isAsync: false);
             var documentQuery = ((DocumentQuery<T>)query);
 
-            return documentQuery.DatabaseCommands.GetFacets(documentQuery.IndexQueried, indexQuery, facetsList, start, pageSize);
+            return documentQuery.GetFacets(facetsList, start, pageSize);
         }
 #endif
 
@@ -201,10 +213,26 @@ namespace Raven.Client
 		/// <param name="pageSize">Paging PageSize. If set, overrides Facet.MaxResults</param>
 		public static Task<FacetResults> ToFacetsAsync<T>( this IQueryable<T> queryable, string facetSetupDoc, int start = 0, int? pageSize = null )
 		{
-			var ravenQueryInspector = ((RavenQueryInspector<T>)queryable);
-			var query = ravenQueryInspector.GetIndexQuery(isAsync: true);
+			var ravenQueryInspector = ((IRavenQueryInspector)queryable);
+			return ravenQueryInspector.GetFacetsAsync(facetSetupDoc, start, pageSize );
+		}
 
-			return ravenQueryInspector.AsyncDatabaseCommands.GetFacetsAsync( ravenQueryInspector.AsyncIndexQueried, query, facetSetupDoc, start, pageSize );
+		/// <summary>
+		/// Async Query the facets results for this query using the specified list of facets with the given start and pageSize
+		/// </summary>
+		/// <param name="facets">List of facets</param>
+		/// <param name="start">Start index for paging</param>
+		/// <param name="pageSize">Paging PageSize. If set, overrides Facet.MaxResults</param>
+		public static Task<FacetResults> ToFacetsAsync<T>(this IQueryable<T> queryable, IEnumerable<Facet> facets, int start = 0, int? pageSize = null)
+		{
+			var facetsList = facets.ToList();
+
+			if (!facetsList.Any())
+				throw new ArgumentException("Facets must contain at least one entry", "facets");
+
+			var ravenQueryInspector = ((IRavenQueryInspector)queryable);
+
+			return ravenQueryInspector.GetFacetsAsync(facetsList, start, pageSize);
 		}
 
 		/// <summary>
@@ -215,10 +243,7 @@ namespace Raven.Client
 		/// <param name="pageSize">Paging PageSize. If set, overrides Facet.MaxResults</param>
 		public static Task<FacetResults> ToFacetsAsync<T>(this IAsyncDocumentQuery<T> queryable, string facetSetupDoc, int start = 0, int? pageSize = null)
 		{
-			var ravenQueryInspector = ((AsyncDocumentQuery<T>)queryable);
-			var query = ravenQueryInspector.GetIndexQuery(isAsync: true);
-
-			return ravenQueryInspector.AsyncDatabaseCommands.GetFacetsAsync(ravenQueryInspector.IndexQueried, query, facetSetupDoc, start, pageSize);
+			return queryable.GetFacetsAsync(facetSetupDoc, start, pageSize);
 		}
 
 		/// <summary>

@@ -4,9 +4,8 @@
 // </copyright>
 //-----------------------------------------------------------------------
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Net;
 using System.Security;
 using Raven.Abstractions.Data;
@@ -24,17 +23,16 @@ using Raven.Client.Document.Async;
 #if SILVERLIGHT
 using System.Net.Browser;
 using Raven.Client.Silverlight.Connection;
+using Raven.Client.Util;
+
 #elif NETFX_CORE
 using System.Collections.Concurrent;
 using Raven.Client.Util;
 using Raven.Client.WinRT.Connection;
 #else
-using Raven.Client.Listeners;
 using Raven.Client.Document.DTC;
-using System.Security.Cryptography;
-using System.Collections.Concurrent;
 using Raven.Client.Util;
-using Raven.Abstractions.Connection;
+
 #endif
 
 
@@ -87,6 +85,9 @@ namespace Raven.Client.Document
 		{
 			get { return true; }
 		}
+
+		public ReplicationBehavior Replication { get; private set; }
+
 		///<summary>
 		/// Get the <see cref="HttpJsonRequestFactory"/> for the stores
 		///</summary>
@@ -145,6 +146,7 @@ namespace Raven.Client.Document
 		/// </summary>
 		public DocumentStore()
 		{
+			Replication = new ReplicationBehavior(this);
 #if !SILVERLIGHT && !NETFX_CORE
 			Credentials = CredentialCache.DefaultNetworkCredentials;
 #endif
@@ -483,7 +485,7 @@ namespace Raven.Client.Document
 			if (EnlistInDistributedTransactions == false)
 				return;
 
-			var pendingTransactionRecovery = new PendingTransactionRecovery();
+			var pendingTransactionRecovery = new PendingTransactionRecovery(this);
 			pendingTransactionRecovery.Execute(ResourceManagerId, DatabaseCommands);
 		}
 #endif
@@ -555,7 +557,9 @@ namespace Raven.Client.Document
 					AssertUnauthorizedCredentialSupportWindowsAuth(unauthorizedResponse);
 					return null;
 				}
-				oauthSource = Url + "/OAuth/API-Key";
+
+				if (string.IsNullOrEmpty(oauthSource))
+					oauthSource = this.Url + "/OAuth/API-Key";
 
 				return securedAuthenticator.DoOAuthRequestAsync(Url, oauthSource);
 			};
@@ -724,7 +728,7 @@ namespace Raven.Client.Document
 				Conventions,
 				GetReplicationInformerForDatabase(database),
 				() => databaseChanges.Remove(database),
-				((AsyncServerClient) AsyncDatabaseCommands).TryResolveConflictByUsingRegisteredListenersAsync);
+				((AsyncServerClient)AsyncDatabaseCommands).TryResolveConflictByUsingRegisteredListenersAsync);
 		}
 
 		/// <summary>
@@ -770,7 +774,10 @@ namespace Raven.Client.Document
 				if (AsyncDatabaseCommands == null)
 					throw new InvalidOperationException("You cannot open an async session because it is not supported on embedded mode");
 
-				var session = new AsyncDocumentSession(dbName, this, asyncDatabaseCommands, listeners, sessionId);
+				var session = new AsyncDocumentSession(dbName, this, asyncDatabaseCommands, listeners, sessionId)
+				{
+				    DatabaseName = dbName ?? DefaultDatabase
+				};
 				AfterSessionCreated(session);
 				return session;
 			}
@@ -803,7 +810,7 @@ namespace Raven.Client.Document
 
 		public IAsyncDocumentSession OpenAsyncSession(OpenSessionOptions options)
 		{
-			return OpenAsyncSessionInternal(options.Database, SetupCommandsAsync(AsyncDatabaseCommands, options.Database, options.Credentials, options));
+            return OpenAsyncSessionInternal(options.Database, SetupCommandsAsync(AsyncDatabaseCommands, options.Database, options.Credentials, options));
 		}
 
 		/// <summary>
@@ -832,7 +839,7 @@ namespace Raven.Client.Document
 #if !SILVERLIGHT && !NETFX_CORE
 		public override BulkInsertOperation BulkInsert(string database = null, BulkInsertOptions options = null)
 		{
-			return new BulkInsertOperation(database ?? DefaultDatabase, this, listeners, options ?? new BulkInsertOptions());
+			return new BulkInsertOperation(database ?? DefaultDatabase, this, listeners, options ?? new BulkInsertOptions(), Changes(database ?? DefaultDatabase));
 		}
 
 		protected override void AfterSessionCreated(InMemoryDocumentSessionOperations session)
@@ -856,6 +863,5 @@ namespace Raven.Client.Document
 			return changes == null ? new CompletedTask() : changes.ConnectionTask;
 		}
 #endif
-
 	}
 }

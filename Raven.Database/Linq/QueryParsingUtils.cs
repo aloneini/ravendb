@@ -137,7 +137,7 @@ namespace Raven.Database.Linq
 			}
 			catch (Exception e)
 			{
-				throw new InvalidOperationException("Could not understand query: " + Environment.NewLine + query, e);
+				throw new InvalidOperationException("Could not understand query: " + e.Message, e);
 			}
 		}
 
@@ -199,7 +199,7 @@ namespace Raven.Database.Linq
 			}
 			catch (Exception e)
 			{
-				throw new InvalidOperationException("Could not understand query: " + Environment.NewLine + query, e);
+				throw new InvalidOperationException("Could not understand query: " + e.Message, e);
 			}
 		}
 
@@ -437,19 +437,37 @@ namespace Raven.Database.Linq
 			{
 				compilerParameters.ReferencedAssemblies.Add(assembly);
 			}
-			var compileAssemblyFromFile = provider.CompileAssemblyFromSource(compilerParameters, source);
+
+			CompilerResults compileAssemblyFromFile;
+			if (indexFilePath != null)
+			{
+				var sourceFileName = indexFilePath + ".cs";
+				File.WriteAllText(sourceFileName, source);
+				compileAssemblyFromFile = provider.CompileAssemblyFromFile(compilerParameters, sourceFileName);
+			}	
+			else
+			{
+				compileAssemblyFromFile = provider.CompileAssemblyFromSource(compilerParameters, source);
+			}
 			var results = compileAssemblyFromFile;
 
 			if (results.Errors.HasErrors)
 			{
-				var sb = new StringBuilder()
-					.AppendLine("Source code:")
-					.AppendLine(queryText)
-					.AppendLine();
-				foreach (CompilerError error in results.Errors)
-				{
-					sb.AppendLine(error.ToString());
-				}
+			    var sb = new StringBuilder()
+                    .AppendLine("Compilation Errors:")
+                    .AppendLine();
+                
+                foreach (CompilerError error in results.Errors)
+                {
+                    sb.AppendFormat("Line {0}, Position {1}: Error {2} - {3}\n", error.Line, error.Column, error.ErrorNumber, error.ErrorText);
+                }
+
+			    sb.AppendLine();
+
+			    sb.AppendLine("Source code:")
+			      .AppendLine(queryText)
+			      .AppendLine();
+
 				throw new InvalidOperationException(sb.ToString());
 			}
 

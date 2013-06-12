@@ -479,7 +479,7 @@ namespace Raven.Client.Document
 		/// <param name = "propertySelectors">Property selectors for the fields.</param>
 		public IAsyncDocumentQuery<T> OrderBy<TValue>(params Expression<Func<T, TValue>>[] propertySelectors)
 		{
-			OrderBy(propertySelectors.Select(x => GetMemberQueryPath(x)).ToArray());
+			OrderBy(propertySelectors.Select(GetMemberQueryPathForOrderBy).ToArray());
 			return this;
 		}
 
@@ -503,7 +503,7 @@ namespace Raven.Client.Document
 		/// <param name = "propertySelectors">Property selectors for the fields.</param>
 		public IAsyncDocumentQuery<T> OrderByDescending<TValue>(params Expression<Func<T, TValue>>[] propertySelectors)
 		{
-			OrderByDescending(propertySelectors.Select(GetMemberQueryPath).ToArray());
+			OrderByDescending(propertySelectors.Select(GetMemberQueryPathForOrderBy).ToArray());
 			return this;
 		}		
 
@@ -709,22 +709,34 @@ namespace Raven.Client.Document
 											start = start,
 											timeout = timeout,
 											cutoff = cutoff,
+											cutoffEtag = cutoffEtag,
+											queryStats = queryStats,
 											theWaitForNonStaleResults = theWaitForNonStaleResults,
 											sortByHints = sortByHints,
 											orderByFields = orderByFields,
 											groupByFields = groupByFields,
 											aggregationOp = aggregationOp,
+											negate = negate,
 											transformResultsFunc = transformResultsFunc,
 											includes = new HashSet<string>(includes),
-											negate = negate,
-											queryOperation = queryOperation,
-											queryStats = queryStats,
-											rootTypes = {typeof(T)},
+											isSpatialQuery = isSpatialQuery,
+											spatialFieldName = spatialFieldName,
+											queryShape = queryShape,
+											spatialRelation = spatialRelation,
+											spatialUnits = spatialUnits,
+											distanceErrorPct = distanceErrorPct,
+											rootTypes = { typeof(T) },
+											defaultField = defaultField,
+											beforeQueryExecutionAction = beforeQueryExecutionAction,
+											afterQueryExecutedCallback = afterQueryExecutedCallback,
 											highlightedFields = new List<HighlightedField>(highlightedFields),
 											highlighterPreTags = highlighterPreTags,
 											highlighterPostTags = highlighterPostTags,
+											resultsTransformer = resultsTransformer,
+											queryInputs = queryInputs,
 											disableEntitiesTracking = disableEntitiesTracking,
-											disableCaching = disableCaching
+											disableCaching = disableCaching,
+											lastEquality = lastEquality
 										};
 			asyncDocumentQuery.AfterQueryExecuted(afterQueryExecutedCallback);
 			return asyncDocumentQuery;
@@ -749,6 +761,24 @@ namespace Raven.Client.Document
 		IAsyncDocumentQuery<T> IDocumentQueryBase<T, IAsyncDocumentQuery<T>>.AddOrder(string fieldName, bool descending)
 		{
 			AddOrder(fieldName, descending);
+			return this;
+		}
+
+		/// <summary>
+		/// Adds an ordering by score for a specific field to the query
+		/// </summary>
+		IAsyncDocumentQuery<T> IDocumentQueryBase<T, IAsyncDocumentQuery<T>>.OrderByScore()
+		{
+			AddOrder(Constants.TemporaryScoreValue, false);
+			return this;
+		}
+
+		/// <summary>
+		/// Adds an ordering by score descending for a specific field to the query
+		/// </summary>
+		IAsyncDocumentQuery<T> IDocumentQueryBase<T, IAsyncDocumentQuery<T>>.OrderByScoreDescending()
+		{
+			AddOrder(Constants.TemporaryScoreValue, true);
 			return this;
 		}
 
@@ -899,6 +929,16 @@ namespace Raven.Client.Document
 		{
 			NoCaching();
 			return this;
+		}
+
+		/// <summary>
+		/// Sets a transformer to use after executing a query
+		/// </summary>
+		/// <param name="resultsTransformer"></param>
+		public IAsyncDocumentQuery<T> SetResultTransformer(string resultsTransformer)
+		{
+	        this.resultsTransformer = resultsTransformer;
+	        return this;
 		}
 	}
 }

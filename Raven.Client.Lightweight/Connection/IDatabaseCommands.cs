@@ -11,6 +11,7 @@ using System.Net;
 using Raven.Abstractions.Commands;
 using Raven.Abstractions.Data;
 using Raven.Abstractions.Indexing;
+using Raven.Client.Changes;
 using Raven.Client.Connection.Profiling;
 using Raven.Client.Document;
 using Raven.Client.Indexes;
@@ -171,7 +172,7 @@ namespace Raven.Client.Connection
 		string PutIndex(string name, IndexDefinition indexDef);
 
 		/// <summary>
-		/// Creates a transformer with the specified name, based on an transfomer definition
+		/// Creates a transformer with the specified name, based on an transformer definition
 		/// </summary>
 		string PutTransformer(string name, TransformerDefinition indexDef);
 
@@ -237,24 +238,17 @@ namespace Raven.Client.Connection
 		/// <param name="commandDatas">The command data.</param> 
 		BatchResult[] Batch(IEnumerable<ICommandData> commandDatas);
 
-		/// <summary>
-		/// Commits the specified tx id
-		/// </summary>
-		/// <param name="txId">The tx id.</param>
-		void Commit(Guid txId);
+	    /// <summary>
+	    /// Commits the specified tx id
+	    /// </summary>
+	    /// <param name="txId">The tx id.</param>
+	    void Commit(string txId);
 
-		/// <summary>
-		/// Rollbacks the specified tx id
-		/// </summary>
-		/// <param name="txId">The tx id.</param>
-		void Rollback(Guid txId);
-
-		/// <summary>
-		/// Promotes the transaction
-		/// </summary>
-		/// <param name="fromTxId">From tx id.</param>
-		/// <returns></returns>
-		byte[] PromoteTransaction(Guid fromTxId);
+	    /// <summary>
+	    /// Rollbacks the specified tx id
+	    /// </summary>
+	    /// <param name="txId">The tx id.</param>
+	    void Rollback(string txId);
 
 		/// <summary>
 		/// Returns a new <see cref="IDatabaseCommands"/> using the specified credentials
@@ -262,14 +256,7 @@ namespace Raven.Client.Connection
 		/// <param name="credentialsForSession">The credentials for session.</param>
 		IDatabaseCommands With(ICredentials credentialsForSession);
 
-		/// <summary>
-		/// Gets a value indicating whether [supports promotable transactions].
-		/// </summary>
-		/// <value>
-		/// 	<c>true</c> if [supports promotable transactions]; otherwise, <c>false</c>.
-		/// </value>
-		bool SupportsPromotableTransactions { get; }
-
+	
 		/// <summary>
 		/// Perform a set based deletes using the specified index, not allowing the operation
 		/// if the index is stale
@@ -377,18 +364,34 @@ namespace Raven.Client.Connection
         FacetResults GetFacets(string index, IndexQuery query, List<Facet> facets, int start = 0, int? pageSize = null);
 
 		/// <summary>
+		/// Sends a patch request for a specific document, ignoring the document's Etag and if the document is missing
+		/// </summary>
+		/// <param name="key">Id of the document to patch</param>
+		/// <param name="patches">Array of patch requests</param>
+		RavenJObject Patch(string key, PatchRequest[] patches);
+
+		/// <summary>
 		/// Sends a patch request for a specific document, ignoring the document's Etag
 		/// </summary>
 		/// <param name="key">Id of the document to patch</param>
 		/// <param name="patches">Array of patch requests</param>
-		void Patch(string key, PatchRequest[] patches);
+		/// <param name="ignoreMissing">true if the patch request should ignore a missing document, false to throw DocumentDoesNotExistException</param>
+		RavenJObject Patch(string key, PatchRequest[] patches, bool ignoreMissing);
+
+		/// <summary>
+		/// Sends a patch request for a specific document, ignoring the document's Etag and  if the document is missing
+		/// </summary>
+		/// <param name="key">Id of the document to patch</param>
+		/// <param name="patch">The patch request to use (using JavaScript)</param>
+		RavenJObject Patch(string key, ScriptedPatchRequest patch);
 
 		/// <summary>
 		/// Sends a patch request for a specific document, ignoring the document's Etag
 		/// </summary>
 		/// <param name="key">Id of the document to patch</param>
 		/// <param name="patch">The patch request to use (using JavaScript)</param>
-		void Patch(string key, ScriptedPatchRequest patch);
+		/// <param name="ignoreMissing">true if the patch request should ignore a missing document, false to throw DocumentDoesNotExistException</param>
+		RavenJObject Patch(string key, ScriptedPatchRequest patch, bool ignoreMissing);
 
 		/// <summary>
 		/// Sends a patch request for a specific document
@@ -396,15 +399,33 @@ namespace Raven.Client.Connection
 		/// <param name="key">Id of the document to patch</param>
 		/// <param name="patches">Array of patch requests</param>
 		/// <param name="etag">Require specific Etag [null to ignore]</param>
-        void Patch(string key, PatchRequest[] patches, Etag etag);
+		RavenJObject Patch(string key, PatchRequest[] patches, Etag etag);
+
+		/// <summary>
+		/// Sends a patch request for a specific document which may or may not currently exist
+		/// </summary>
+		/// <param name="key">Id of the document to patch</param>
+		/// <param name="patchesToExisting">Array of patch requests to apply to an existing document</param>
+		/// <param name="patchesToDefault">Array of patch requests to apply to a default document when the document is missing</param>
+		/// <param name="defaultMetadata">The metadata for the default document when the document is missing</param>
+		RavenJObject Patch(string key, PatchRequest[] patchesToExisting, PatchRequest[] patchesToDefault, RavenJObject defaultMetadata);
 
 		/// <summary>
 		/// Sends a patch request for a specific document
 		/// </summary>
 		/// <param name="key">Id of the document to patch</param>
-        /// <param name="patch">The patch request to use (using JavaScript)</param>
+		/// <param name="patch">The patch request to use (using JavaScript)</param>
 		/// <param name="etag">Require specific Etag [null to ignore]</param>
-        void Patch(string key, ScriptedPatchRequest patch, Etag etag);
+		RavenJObject Patch(string key, ScriptedPatchRequest patch, Etag etag);
+
+		/// <summary>
+		/// Sends a patch request for a specific document which may or may not currently exist
+		/// </summary>
+		/// <param name="key">Id of the document to patch</param>
+		/// <param name="patchExisting">The patch request to use (using JavaScript) to an existing document</param>
+		/// <param name="patchDefault">The patch request to use (using JavaScript)  to a default document when the document is missing</param>
+		/// <param name="defaultMetadata">The metadata for the default document when the document is missing</param>
+		RavenJObject Patch(string key, ScriptedPatchRequest patchExisting, ScriptedPatchRequest patchDefault, RavenJObject defaultMetadata);
 
 		/// <summary>
 		/// Disable all caching within the given scope
@@ -448,7 +469,7 @@ namespace Raven.Client.Connection
 		/// <summary>
 		/// Get the low level  bulk insert operation
 		/// </summary>
-		ILowLevelBulkInsertOperation GetBulkInsertOperation(BulkInsertOptions options);
+		ILowLevelBulkInsertOperation GetBulkInsertOperation(BulkInsertOptions options, IDatabaseChanges changes);
 #endif
 		/// <summary>
 		/// Gets the transformers from the server
@@ -468,6 +489,12 @@ namespace Raven.Client.Connection
 		/// </summary>
 		/// <param name="name">The name.</param>
 		void DeleteTransformer(string name);
+
+		/// <summary>
+		/// Prepares the transaction on the server.
+		/// </summary>
+		/// <param name="txId">The tx id.</param>
+		void PrepareTransaction(string txId);
 	}
 }
 #endif

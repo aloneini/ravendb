@@ -64,23 +64,7 @@ namespace Raven.Smuggler
 			ConnectionStringOptions = connectionStringOptions;
 		}
 
-		public override async Task ImportData(SmugglerOptions options, bool incremental = false)
-		{
-			using (store = CreateStore())
-			{
-				using (operation = store.BulkInsert(options: new BulkInsertOptions
-				{
-					CheckForUpdates = true
-				}))
-				{
-					operation.Report += text => ShowProgress(text);
-
-					await base.ImportData(options, incremental);
-				}
-			}
-		}
-
-		public override async Task ImportData(Stream stream, SmugglerOptions options, bool importIndexes = true)
+		public override async Task ImportData(Stream stream, SmugglerOptions options)
 		{
 			SmugglerJintHelper.Initialize(options ?? SmugglerOptions);
 
@@ -88,32 +72,45 @@ namespace Raven.Smuggler
 
 			using (store = CreateStore())
 			{
-				using (operation = store.BulkInsert(options: new BulkInsertOptions
+				Task disposeTask = null;
+
+				try
 				{
-					BatchSize = batchSize,
-					CheckForUpdates = true
-				}))
-				{
+					operation = store.BulkInsert(options: new BulkInsertOptions
+					{
+						BatchSize = batchSize,
+						CheckForUpdates = true
+					});
+
 					operation.Report += text => ShowProgress(text);
 
-					await base.ImportData(stream, options, importIndexes);
+					await base.ImportData(stream, options);
+				}
+				finally
+				{
+					disposeTask = operation.DisposeAsync();
+				}
+
+				if (disposeTask != null)
+				{
+					await disposeTask;
 				}
 			}
 		}
 
-		public override async Task<string> ExportData(Stream stream, SmugglerOptions options, bool incremental)
+		public override async Task<string> ExportData(Stream stream, SmugglerOptions options, bool incremental, PeriodicBackupStatus backupStatus = null)
 		{
 			using (store = CreateStore())
 			{
-				return await base.ExportData(stream, options, incremental);
+				return await base.ExportData(stream, options, incremental, backupStatus);
 			}
 		}
 
-		public override async Task<string> ExportData(Stream stream, SmugglerOptions options, bool incremental, bool lastEtagsFromFile)
+		public override async Task<string> ExportData(Stream stream, SmugglerOptions options, bool incremental, bool lastEtagsFromFile, PeriodicBackupStatus lastEtag)
 		{
 			using (store = CreateStore())
 			{
-				return await base.ExportData(stream, options, incremental, lastEtagsFromFile);
+				return await base.ExportData(stream, options, incremental, lastEtagsFromFile, lastEtag);
 			}
 		}
 
@@ -140,7 +137,7 @@ namespace Raven.Smuggler
 			{
 				var transformerDefinition = JsonConvert.DeserializeObject<TransformerDefinition>(transformer.Value<RavenJObject>("definition").ToString());
 
-				return Commands.PutTransfomerAsync(transformerName, transformerDefinition);
+				return Commands.PutTransformerAsync(transformerName, transformerDefinition);
 			}
 
 			return FlushBatch();

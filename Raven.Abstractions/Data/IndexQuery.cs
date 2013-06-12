@@ -239,7 +239,7 @@ namespace Raven.Abstractions.Data
                 path.Append("&skipTransformResults=true");
             }
 
-            if (ResultsTransformer != null)
+            if (string.IsNullOrEmpty(ResultsTransformer) == false)
             {
                 path.AppendFormat("&resultsTransformer={0}", Uri.EscapeDataString(ResultsTransformer));
             }
@@ -254,8 +254,7 @@ namespace Raven.Abstractions.Data
 
 			if (Cutoff != null)
 			{
-				var cutOffAsString =
-					Uri.EscapeUriString(Uri.EscapeDataString(Cutoff.Value.ToString("o", CultureInfo.InvariantCulture)));
+				var cutOffAsString = Uri.EscapeDataString(Cutoff.Value.ToString("o", CultureInfo.InvariantCulture));
 				path.Append("&cutOff=").Append(cutOffAsString);
 			}
 			if (CutoffEtag != null)
@@ -275,8 +274,12 @@ namespace Raven.Abstractions.Data
 
 		private void AppendMinimalQueryString(StringBuilder path)
 		{
-			path.Append("query=")
-				.Append(Uri.EscapeUriString(Uri.EscapeDataString(Query ?? "")));
+			if (string.IsNullOrEmpty(Query) == false)
+			{
+				path.Append("&query=")
+				    .Append(Uri.EscapeDataString(Query));
+			}
+			
 			if (string.IsNullOrEmpty(DefaultField) == false)
 			{
 				path.Append("&defaultField=").Append(Uri.EscapeDataString(DefaultField));
@@ -302,6 +305,11 @@ namespace Raven.Abstractions.Data
 		public IndexQuery Clone()
 		{
 			return (IndexQuery)MemberwiseClone();
+		}
+
+		public override string ToString()
+		{
+			return Query;
 		}
 	}
 

@@ -192,22 +192,17 @@ namespace Raven.Client.Shard
 
 		#region Transaction methods (not supported)
 
-		public override void Commit(Guid txId)
+		public override void Commit(string txId)
 		{
 			throw new NotSupportedException("DTC support is handled via the internal document stores");
 		}
 
-		public override void Rollback(Guid txId)
+		public override void Rollback(string txId)
 		{
 			throw new NotSupportedException("DTC support is handled via the internal document stores");
 		}
 
-		/// <summary>
-		/// Promotes a transaction specified to a distributed transaction
-		/// </summary>
-		/// <param name="fromTxId">From tx id.</param>
-		/// <returns>The token representing the distributed transaction</returns>
-		public override byte[] PromoteTransaction(Guid fromTxId)
+		public void PrepareTransaction(string txId)
 		{
 			throw new NotSupportedException("DTC support is handled via the internal document stores");
 		}
@@ -247,12 +242,17 @@ namespace Raven.Client.Shard
 			var highlightings = new RavenQueryHighlightings();
 #if !SILVERLIGHT
 			var provider = new RavenQueryProvider<T>(this, indexName, ravenQueryStatistics, highlightings, null, null, isMapReduce);
-			return new RavenQueryInspector<T>(provider, ravenQueryStatistics, highlightings, indexName, null, this, null, null, isMapReduce);
 #else
 			var provider = new RavenQueryProvider<T>(this, indexName, ravenQueryStatistics, highlightings, null, isMapReduce);
-			return new RavenQueryInspector<T>(provider, ravenQueryStatistics, highlightings, indexName, null, this, null, isMapReduce);
 #endif
+			return CreateRavenQueryInspector(indexName, isMapReduce, provider, ravenQueryStatistics, highlightings);
 		}
+
+		protected abstract RavenQueryInspector<T> CreateRavenQueryInspector<T>(string indexName, bool isMapReduce,
+		                                                                              RavenQueryProvider<T> provider,
+		                                                                              RavenQueryStatistics
+			                                                                              ravenQueryStatistics,
+		                                                                              RavenQueryHighlightings highlightings);
 
 		/// <summary>
 		/// Query RavenDB dynamically using LINQ

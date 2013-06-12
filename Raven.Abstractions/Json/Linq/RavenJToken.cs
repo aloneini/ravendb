@@ -211,6 +211,16 @@ namespace Raven.Json.Linq
 			return Load(jsonTextReader);
 		}
 
+		public static async Task<RavenJToken> TryLoadAsync(Stream stream)
+		{
+			var jsonTextReader = new JsonTextReaderAsync(new StreamReader(stream));
+			if (await jsonTextReader.ReadAsync() == false || jsonTextReader.TokenType == JsonToken.None)
+			{
+				return null;
+			}
+			return await ReadFromAsync(jsonTextReader);
+		}
+
 		/// <summary>
 		/// Creates a <see cref="RavenJToken"/> from a <see cref="JsonReader"/>.
 		/// </summary>
@@ -303,6 +313,12 @@ namespace Raven.Json.Linq
 								RavenJToken token;
 								if (otherObj.TryGetValue(kvp.Key, out token) == false)
 									return false;
+								if (kvp.Value == null)
+								{
+									if (token != null && token.Type != JTokenType.Null)
+										return false;
+									continue;
+								}
 								switch (kvp.Value.Type)
 								{
 									case JTokenType.Array:

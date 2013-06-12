@@ -52,6 +52,7 @@ namespace Raven.Database.Indexing
 					.ToList();
 				try
 				{
+					RecordCurrentBatch("Current", batch.Docs.Count);
 					var docIdTerm = new Term(Constants.DocumentIdFieldName);
 					var documentsWrapped = batch.Docs.Select((doc,i) =>
 					{
@@ -72,7 +73,8 @@ namespace Raven.Database.Indexing
 									exception);
 								context.AddError(name,
 								                 documentId,
-								                 exception.Message
+								                 exception.Message,
+                                                 "OnIndexEntryDeleted Trigger"
 									);
 							},
 							trigger => trigger.OnIndexEntryDeleted(documentId));
@@ -86,6 +88,7 @@ namespace Raven.Database.Indexing
 						.ToList();
 
 					var allReferencedDocs = new ConcurrentQueue<IDictionary<string, HashSet<string>>>();
+					var indexes = new ConcurrentQueue<RavenIndexWriter>();
 					BackgroundTaskExecuter.Instance.ExecuteAllBuffered(context, documentsWrapped, (partition) =>
 					{
 						var anonymousObjectToLuceneDocumentConverter = new AnonymousObjectToLuceneDocumentConverter(indexDefinition, viewGenerator);
@@ -120,7 +123,8 @@ namespace Raven.Database.Indexing
 												exception);
 											context.AddError(name,
 															 indexingResult.NewDocId,
-															 exception.Message
+															 exception.Message,
+                                                             "OnIndexEntryCreated Trigger"
 												);
 										},
 										trigger => trigger.OnIndexEntryCreated(indexingResult.NewDocId, luceneDoc));
@@ -149,7 +153,7 @@ namespace Raven.Database.Indexing
 						ex =>
 						{
 							logIndexing.WarnException("Failed to notify index update trigger batcher about an error", ex);
-							context.AddError(name, null, ex.Message);
+							context.AddError(name, null, ex.Message, "AnErrorOccured Trigger");
 						},
 						x => x.AnErrorOccured(e));
 					throw;
@@ -160,9 +164,10 @@ namespace Raven.Database.Indexing
 						e =>
 						{
 							logIndexing.WarnException("Failed to dispose on index update trigger", e);
-							context.AddError(name, null, e.Message);
+							context.AddError(name, null, e.Message, "Dispose Trigger");
 						},
 						x => x.Dispose());
+					BatchCompleted("Current");
 				}
 				return new IndexedItemsInfo
 				{
@@ -174,12 +179,23 @@ namespace Raven.Database.Indexing
 			AddindexingPerformanceStat(new IndexingPerformanceStats
 			{
 				OutputCount = count,
-				InputCount = sourceCount,
+				ItemsCount = sourceCount,
+				InputCount = batch.Docs.Count,
 				Duration = sw.Elapsed,
 				Operation = "Index",
 				Started = start
 			});
 			logIndexing.Debug("Indexed {0} documents for {1}", count, name);
+		}
+
+		protected override bool IsUpToDateEnoughToWriteToDisk(Etag highestETag)
+		{
+			bool upToDate = false;
+			context.Database.TransactionalStorage.Batch(accessor =>
+			{
+				upToDate = accessor.Staleness.GetMostRecentDocumentEtag() == highestETag;
+			});
+			return upToDate;
 		}
 
 		protected override void HandleCommitPoints(IndexedItemsInfo itemsInfo)
@@ -317,7 +333,7 @@ namespace Raven.Database.Indexing
 								string.Format("Error when executed OnIndexEntryDeleted trigger for index '{0}', key: '{1}'",
 								              name, key),
 								exception);
-							context.AddError(name, key, exception.Message);
+							context.AddError(name, key, exception.Message, "OnIndexEntryDeleted Trigger");
 						},
 						trigger => trigger.OnIndexEntryDeleted(key)));
 				writer.DeleteDocuments(keys.Select(k => new Term(Constants.DocumentIdFieldName, k.ToLowerInvariant())).ToArray());
@@ -325,7 +341,7 @@ namespace Raven.Database.Indexing
 					e =>
 					{
 						logIndexing.WarnException("Failed to dispose on index update trigger", e);
-						context.AddError(name, null, e.Message);
+						context.AddError(name, null, e.Message, "Dispose Trigger");
 					},
 					batcher => batcher.Dispose());
 
