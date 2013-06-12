@@ -1,0 +1,75 @@
+﻿<div class="row-fluid create-new-server" ng-controller="editServerCtrl">
+    <h3>Edit a server:</h3>
+    <table>
+        <tr>
+            <td>
+                <h4>Please choose a server:</h4>
+                <select id="selectServer" ng-model="selectedServer" 
+                        ng-options="server.serverName for server in stats.servers">
+                    <option value="empty">halo</option>
+                </select>
+            </td>
+        </tr>
+    </table>
+
+    <table id="Propertiestable">
+
+        <tr>
+            <td>
+                <h4><b>Properties:</b></h4>
+            </td>
+        </tr>
+        <tr>
+            <td>Id
+            </td>
+            <td>
+                <input readonly="readonly" type="text"  ng-model="selectedServer.id">
+            </td>
+        </tr>
+        <tr>
+            <td>Url
+            </td>
+            <td>
+                <input type="text" ng-model="selectedServer.url">
+            </td>
+        </tr>
+        <tr>
+            <td>Server's Name
+            </td>
+            <td>
+                <input type="text" ng-model="selectedServer.serverName">
+            </td>
+        </tr>
+        <tr>
+            <td>Cluster's Name
+            </td>
+            <td>
+                <input type="text" id="ClusterNameText" ng-model="selectedServer.clusterName">
+            </td>
+        </tr>
+        <tr>
+            <td>Is Online
+                <input type="checkbox" id="IsOnlineCheckbox" ng-model="selectedServer.isOnline" />
+            </td>
+        </tr>
+        <tr>
+            <td>Credential's Id
+            </td>
+            <td>
+                <input type="text" id="CredentialsIdText" ng-model="selectedServer.credentialsId">
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <button id="save" ng-model="save" ng-click="saveChanges()">Save Changes</button><br/>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<script type="text/javascript">
+    $(function () {
+        $("#selectServer").focus();
+      
+    })
+</script>
