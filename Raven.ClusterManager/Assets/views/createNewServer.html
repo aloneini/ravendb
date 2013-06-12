@@ -1,0 +1,91 @@
+﻿<div class="row-fluid create-new-server" ng-controller="CreateNewServerCtrl">
+    <h3>Create a new server:</h3>
+    <table>
+        <tr>
+            <td><b>Url:</b></td>
+            <td>
+                <input type="text" id="Url" ng-model="Url" placeholder="Please enter Url"></td>
+        </tr>
+        <tr>
+            <td><b>Credential's name:</b></td>
+            <td>
+                <input type="text" id="Credendial" ng-model="Credendial" placeholder="Please enter credential or choose one">
+                <button id="chooseExistingCredendial" ng-model="chooseExistingCredendial" ng-click="chooseCredendial()">Choose existing credendial</button></td>
+        </tr>
+        <tr>
+            <td>
+                <select ng-model="selectCredential" id="selectCredential">
+                    <option ng-repeat="ceredential in stats.credentials">{{ceredential.id}}</option>
+                </select>
+            </td>
+        </tr>
+    </table>
+    <br />
+    <button id="saveServer" ng-click="saveServer()">Add server</button>
+    <h5 style="color: red" ng-model="detailsAlert" id="detailsAlert">* Please complete all information</h5>
+
+
+
+
+</div>
+<script type="text/javascript">
+    $(function () {
+
+        $('#selectCredential').hide();
+        $("#Url").focus();
+        $('#detailsAlert').hide();
+        $('#chooseExistingCredendial').click(function () {
+            $('#selectCredential').show();
+        });
+
+        $('#chooseExistingCredendial').click(function () {
+            $('#Credendial').attr('readonly', true);
+        });
+
+        $('#saveServer').click(function () {
+
+            var tempUrl = "";
+            var tempCredendial = "";
+            tempUrl = $('#Url');
+            tempCredendial = $('#Credendial');
+            tempSelectCred = $('#selectCredential');
+
+
+
+            if (tempUrl.val() == "" || tempCredendial.val() == "") {                
+
+
+                if (tempUrl.val() == "") {
+                    $("#Url").css('border-color', 'red');
+                    $('#detailsAlert').show();
+                }
+                else {
+                    $("#Url").css('border-color', '#CCCCCC');
+                }
+
+                if (tempCredendial.val() == "") {
+                    if (tempSelectCred.val()=="")
+                    {
+                        $("#Credendial").css('border-color', 'red');
+                        $('#detailsAlert').show();
+                    }
+
+                }
+                else {
+                    $("#Credendial").css('border-color', '#CCCCCC');
+                }
+            }
+            else {
+                $('#detailsAlert').hide();
+                $("#Url").css('border-color', '#CCCCCC');
+                $("#Credendial").css('border-color', '#CCCCCC');
+            };
+        });
+    })
+</script>
+<style type="text/css">
+    .empty
+    {
+        border-color: red;
+    }
+</style>
