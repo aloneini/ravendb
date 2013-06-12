@@ -105,6 +105,9 @@
     <Content Include="Assets\images\server_view.png" />
     <Content Include="Assets\images\server_warning.png" />
     <Content Include="Assets\index.html" />
+    <Content Include="Assets\scripts\controllers\apiCtrl.js" />
+    <Content Include="Assets\scripts\controllers\createNewServerCtrl.js" />
+    <Content Include="Assets\scripts\controllers\editServerCrtl.js" />
     <Content Include="Assets\scripts\controllers\replicationCtrl.js" />
     <Content Include="Assets\scripts\controllers\serverExplorerCtrl.js" />
     <Content Include="Assets\scripts\directives\springyDirective.js" />
@@ -146,6 +149,8 @@
     <Content Include="Assets\scripts\vendor\bootstrap\bootstrap.js" />
     <Content Include="Assets\scripts\vendor\bootstrap\bootstrap.min.js" />
     <Content Include="Assets\views\authenticationDialog.html" />
+    <Content Include="Assets\views\createNewServer.html" />
+    <Content Include="Assets\views\editServer.html" />
     <Content Include="Assets\views\linkServerWithCredentials.html" />
     <Content Include="Assets\views\replication.html" />
     <Content Include="Assets\views\serverExplorer.html" />

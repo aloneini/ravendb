@@ -309,9 +309,9 @@ namespace Raven.Studio.Commands
 
 		private bool SaveWindowsAuth()
 		{
-			var session = ApplicationModel.Current.Server.Value.DocumentStore.OpenAsyncSession();
+			var session = ApplicationModel.Current.Server.Value.DocumentStore.OpenAsyncSession();// load from DB
 
-			var windowsAuthModel = settingsModel.Sections
+			var windowsAuthModel = settingsModel.Sections//linq
 				.Where(sectionModel => sectionModel is WindowsAuthSettingsSectionModel)
 				.Cast<WindowsAuthSettingsSectionModel>()
 				.FirstOrDefault();

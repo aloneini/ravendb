@@ -18,3 +18,10 @@ a[ng-click] {
 	font-weight: bold;
 	width: 200px;
 }
+.create-new-server input {
+	width: 250px;
+}
+.empty {
+	border-style:solid;
+border-color:#ff0000 #0000ff;
+}

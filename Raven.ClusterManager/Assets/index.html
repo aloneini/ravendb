@@ -6,11 +6,9 @@
     <title>RavenDB Cluster Manager</title>
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width">
-    
     <link rel="stylesheet" href="/styles/vendor/bootstrap/bootstrap.css">
     <link rel="stylesheet" href="/styles/vendor/bootstrap/bootstrap-responsive.css">
     <link rel="stylesheet" href="/styles/main.css">
-    
     <!-- build:js scripts/vendor.js -->
     <script src="/scripts/vendor/jquery/jquery.js"></script>
     <script src="/scripts/vendor/modernizr/modernizr.js"></script>
@@ -21,7 +19,6 @@
     <script src="/scripts/vendor/springy/springy.js"></script>
     <script src="/scripts/vendor/springy/springyui.js"></script>
     <!-- endbuild -->
-    
     <!-- build:js scripts/main.js -->
     <script src="/scripts/main.js"></script>
     <script src="/scripts/services/timeago.js"></script>
@@ -30,6 +27,9 @@
     <script src="/scripts/controllers/serversCtrl.js"></script>
     <script src="/scripts/controllers/serverExplorerCtrl.js"></script>
     <script src="/scripts/controllers/replicationCtrl.js"></script>
+    <script src="/scripts/controllers/apiCtrl.js"></script>
+    <script src="/scripts/controllers/createNewServerCtrl.js"></script>
+    <script src="/scripts/controllers/editServerCrtl.js"></script>
     <!-- endbuild -->
 </head>
 <body>
@@ -39,19 +39,17 @@
                 <img src="/images/logo.png" style="height: 30px;">
                 <h1>RavenDB Cluster Manager</h1>
             </div>
-            
             <nav>
                 <ul>
                     <li><a ng-href="/servers">Servers</a></li>
                     <li><a ng-href="/replication">Replication</a></li>
+                    <li><a ng-href="/createNewServer">Create a new sever</a></li>
+                    <li><a ng-href="/editServer">Edit a server</a></li>
                 </ul>
             </nav>
         </header>
-        
-        
 
         <div id="main-container" class="container" ng-view></div>
-        
         <footer>
             <div class="navbar navbar-fixed-bottom">
                 <ul>
@@ -70,10 +68,12 @@
 
     <!-- Google Analytics: change UA-XXXXX-X to be your site's ID. -->
     <script>
-        var _gaq=[['_setAccount','UA-XXXXX-X'],['_trackPageview']];
-        (function(d,t){var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
-        g.src=('https:'==location.protocol?'//ssl':'//www')+'.google-analytics.com/ga.js';
-        s.parentNode.insertBefore(g,s)}(document,'script'));
+        var _gaq = [['_setAccount', 'UA-XXXXX-X'], ['_trackPageview']];
+        (function (d, t) {
+            var g = d.createElement(t), s = d.getElementsByTagName(t)[0];
+            g.src = ('https:' == location.protocol ? '//ssl' : '//www') + '.google-analytics.com/ga.js';
+            s.parentNode.insertBefore(g, s)
+        }(document, 'script'));
     </script>
 </body>
 </html>
