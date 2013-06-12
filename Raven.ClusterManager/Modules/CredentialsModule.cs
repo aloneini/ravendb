@@ -45,7 +45,7 @@ namespace Raven.ClusterManager.Modules
 
 				var credentials = this.Bind<ServerCredentials>();
 
-				var client = await ServerHelpers.CreateAsyncServerClient(session, serverRecord, credentials);
+				var client = await ServerHelpers.CreateAsyncServerClient(session, serverRecord);
 
 
 				try
